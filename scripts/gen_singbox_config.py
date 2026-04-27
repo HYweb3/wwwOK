@@ -65,21 +65,21 @@ def generate_config():
             "type": "vmess",
             "listen": "0.0.0.0",
             "listen_port": 9001,
-            "users": [{"id": u["uuid"], "email": u["username"]} for u in users]
+            "users": [{"uuid": u["uuid"]} for u in users]
         },
         {
             "tag": "trojan-in",
             "type": "trojan",
             "listen": "0.0.0.0",
             "listen_port": 9002,
-            "users": [{"password": u["password"], "email": u["username"]} for u in users]
+            "users": [{"password": u["password"]} for u in users]
         },
         {
             "tag": "vless-in",
             "type": "vless",
             "listen": "0.0.0.0",
             "listen_port": 9003,
-            "users": [{"id": u["uuid"], "email": u["username"]} for u in users]
+            "users": [{"uuid": u["uuid"]} for u in users]
         }
     ]
 
