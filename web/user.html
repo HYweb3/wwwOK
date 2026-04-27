@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>wwwOK - 用户中心</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --dark: #0f172a;
+            --darker: #020617;
+            --gray: #334155;
+            --light: #f1f5f9;
+            --text: #e2e8f0;
+            --text-dim: #94a3b8;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--darker) 0%, var(--dark) 100%);
+            min-height: 100vh;
+            color: var(--text);
+        }
+        .container { max-width: 700px; margin: 0 auto; padding: 20px; }
+
+        .header {
+            display: flex; align-items: center; gap: 15px;
+            padding: 20px; background: rgba(15,23,42,0.8);
+            backdrop-filter: blur(10px); border-radius: 16px;
+            margin-bottom: 30px; border: 1px solid rgba(255,255,255,0.1);
+        }
+        .logo-icon {
+            width: 50px; height: 50px;
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 100%);
+            border-radius: 12px; display: flex; align-items: center;
+            justify-content: center; font-size: 24px;
+        }
+        .logo h1 { font-size: 24px; font-weight: 700; }
+        .logo span { font-size: 14px; color: var(--text-dim); }
+
+        /* Login */
+        .login-box {
+            background: rgba(15,23,42,0.8); border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1); padding: 40px;
+            max-width: 400px; margin: 60px auto;
+        }
+        .login-box h2 { text-align: center; margin-bottom: 30px; font-size: 22px; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; font-size: 14px; color: var(--text-dim); }
+        .form-group input {
+            width: 100%; padding: 12px 16px; border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3);
+            color: var(--text); font-size: 14px;
+        }
+        .form-group input:focus { outline: none; border-color: var(--primary); }
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 12px 24px; border-radius: 10px; font-size: 14px;
+            font-weight: 500; cursor: pointer; border: none; transition: all 0.3s;
+            width: 100%; justify-content: center;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(99,102,241,0.3); }
+        .btn-sm { padding: 8px 16px; font-size: 13px; width: auto; }
+
+        /* User Panel */
+        .user-panel { display: none; }
+        .user-panel.active { display: block; }
+
+        .stat-row {
+            display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 20px;
+        }
+        .stat-card {
+            background: rgba(15,23,42,0.6); border-radius: 16px; padding: 20px;
+            border: 1px solid rgba(255,255,255,0.1); text-align: center;
+        }
+        .stat-card .icon { font-size: 28px; margin-bottom: 10px; }
+        .stat-card h3 { font-size: 22px; font-weight: 700; margin-bottom: 5px; }
+        .stat-card p { font-size: 12px; color: var(--text-dim); }
+
+        .flow-card {
+            background: rgba(15,23,42,0.6); border-radius: 16px; padding: 20px;
+            border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;
+        }
+        .flow-card h3 { font-size: 14px; color: var(--text-dim); margin-bottom: 10px; }
+        .flow-bar {
+            width: 100%; height: 10px; background: rgba(255,255,255,0.1);
+            border-radius: 5px; overflow: hidden; margin-top: 10px;
+        }
+        .flow-bar .fill { height: 100%; border-radius: 5px; transition: width 0.5s; }
+        .flow-bar .fill.low { background: var(--success); }
+        .flow-bar .fill.medium { background: var(--warning); }
+        .flow-bar .fill.high { background: var(--danger); }
+
+        .info-card {
+            background: rgba(15,23,42,0.6); border-radius: 16px; padding: 25px;
+            border: 1px solid rgba(255,255,255,0.1); margin-bottom: 20px;
+        }
+        .info-card h3 {
+            font-size: 16px; margin-bottom: 20px; padding-bottom: 10px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex; align-items: center; gap: 10px;
+        }
+        .info-row {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .info-row:last-child { border-bottom: none; }
+        .info-row .label { color: var(--text-dim); font-size: 14px; }
+        .info-row .value { font-weight: 600; font-size: 14px; }
+
+        .sub-box {
+            background: rgba(0,0,0,0.3); border-radius: 12px; padding: 20px;
+        }
+        .sub-box h4 { font-size: 14px; color: var(--text-dim); margin-bottom: 12px; }
+        .sub-url {
+            display: flex; gap: 8px; align-items: center;
+        }
+        .sub-url input {
+            flex: 1; padding: 10px 14px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3);
+            color: var(--text); font-family: monospace; font-size: 12px;
+        }
+        .btn-copy {
+            padding: 10px 16px; border-radius: 8px; border: none; cursor: pointer;
+            background: rgba(99,102,241,0.2); color: var(--primary); font-size: 13px;
+        }
+        .btn-copy:hover { background: var(--primary); color: white; }
+
+        .protocol-links { margin-top: 15px; }
+        .link-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .link-item:last-child { border-bottom: none; }
+        .link-item .protocol { width: 70px; font-weight: 600; font-size: 12px; }
+        .link-item.ss .protocol { color: #20bd5f; }
+        .link-item.vmess .protocol { color: #4b5cc4; }
+        .link-item.trojan .protocol { color: #8b5cf6; }
+        .link-item.vless .protocol { color: #f59e0b; }
+        .link-item .url-input {
+            flex: 1; padding: 8px 12px; border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3);
+            color: var(--text); font-family: monospace; font-size: 11px;
+        }
+        .link-item .copy-btn {
+            padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer;
+            background: rgba(99,102,241,0.2); color: var(--primary); font-size: 12px;
+        }
+        .link-item .copy-btn:hover { background: var(--primary); color: white; }
+        .link-item .qr-btn {
+            padding: 8px 12px; border-radius: 6px; border: none; cursor: pointer;
+            background: rgba(16,185,129,0.2); color: var(--success); font-size: 12px;
+        }
+        .link-item .qr-btn:hover { background: var(--success); color: white; }
+
+        /* Change Password */
+        .pwd-form { margin-top: 15px; }
+        .pwd-form .form-group { margin-bottom: 15px; }
+        .pwd-form input {
+            width: 100%; padding: 10px 14px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.1); background: rgba(0,0,0,0.3);
+            color: var(--text); font-size: 14px;
+        }
+
+        .logout-btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 10px 20px; border-radius: 10px; border: none; cursor: pointer;
+            background: rgba(239,68,68,0.2); color: var(--danger); font-size: 14px;
+            margin-top: 20px;
+        }
+        .logout-btn:hover { background: var(--danger); color: white; }
+
+        /* QR Modal */
+        .qr-modal {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9); display: flex; align-items: center;
+            justify-content: center; z-index: 2000; opacity: 0; visibility: hidden;
+            transition: all 0.3s;
+        }
+        .qr-modal.active { opacity: 1; visibility: visible; }
+        .qr-container { background: white; padding: 30px; border-radius: 20px; text-align: center; }
+        .qr-container canvas { border-radius: 10px; }
+        .qr-container p { margin-top: 15px; color: #333; font-size: 14px; font-weight: 500; }
+        .qr-close {
+            margin-top: 20px; padding: 10px 30px; background: var(--primary);
+            color: white; border: none; border-radius: 10px; cursor: pointer;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 30px; right: 30px; padding: 15px 25px;
+            border-radius: 12px; background: var(--dark);
+            border: 1px solid rgba(255,255,255,0.1);
+            display: flex; align-items: center; gap: 12px;
+            transform: translateX(120%); transition: transform 0.3s; z-index: 3000;
+        }
+        .toast.show { transform: translateX(0); }
+        .toast.success { border-color: var(--success); }
+        .toast.error { border-color: var(--danger); }
+        .toast.success .toast-icon { color: var(--success); }
+        .toast.error .toast-icon { color: var(--danger); }
+
+        @media (max-width: 600px) {
+            .stat-row { grid-template-columns: 1fr; }
+            .link-item { flex-wrap: wrap; }
+            .link-item .url-input { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login -->
+    <div class="login-box" id="loginBox">
+        <h2><i class="fas fa-user-circle"></i> 用户登录</h2>
+        <div class="form-group">
+            <label>用户名</label>
+            <input type="text" id="loginUsername" placeholder="输入用户名">
+        </div>
+        <div class="form-group">
+            <label>密码</label>
+            <input type="password" id="loginPassword" placeholder="输入密码">
+        </div>
+        <button class="btn btn-primary" onclick="doLogin()">
+            <i class="fas fa-sign-in-alt"></i> 登录
+        </button>
+    </div>
+
+    <!-- User Panel -->
+    <div class="container user-panel" id="userPanel">
+        <header class="header">
+            <div class="logo-icon"><i class="fas fa-globe"></i></div>
+            <div class="logo">
+                <h1>wwwOK</h1>
+                <span>用户中心 · <span id="panelUsername"></span></span>
+            </div>
+            <button class="logout-btn" onclick="logout()" style="margin-left:auto;">
+                <i class="fas fa-sign-out-alt"></i> 退出
+            </button>
+        </header>
+
+        <!-- Stats -->
+        <div class="stat-row">
+            <div class="stat-card">
+                <div class="icon" style="color:var(--success);"><i class="fas fa-arrow-up"></i></div>
+                <h3 id="statUsed">0 GB</h3>
+                <p>已用流量</p>
+            </div>
+            <div class="stat-card">
+                <div class="icon" style="color:var(--warning);"><i class="fas fa-database"></i></div>
+                <h3 id="statRemain">0 GB</h3>
+                <p>剩余流量</p>
+            </div>
+            <div class="stat-card">
+                <div class="icon" style="color:var(--primary);"><i class="fas fa-clock"></i></div>
+                <h3 id="statExpire">-</h3>
+                <p>到期时间</p>
+            </div>
+        </div>
+
+        <!-- Flow Usage -->
+        <div class="flow-card">
+            <h3><i class="fas fa-chart-pie"></i> 流量使用情况</h3>
+            <div style="display:flex;justify-content:space-between;font-size:13px;">
+                <span id="flowUsed">0 GB</span>
+                <span id="flowTotal">0 GB</span>
+            </div>
+            <div class="flow-bar">
+                <div class="fill low" id="flowFill" style="width:0%"></div>
+            </div>
+            <div style="text-align:center;margin-top:8px;font-size:12px;color:var(--text-dim);">
+                <span id="flowPercent">0%</span> 已使用
+            </div>
+        </div>
+
+        <!-- Subscription -->
+        <div class="info-card">
+            <h3><i class="fas fa-link"></i> 我的订阅</h3>
+            <div class="sub-box">
+                <h4>订阅链接（用于客户端导入）</h4>
+                <div class="sub-url">
+                    <input type="text" id="subUrl" readonly>
+                    <button class="btn-copy" onclick="copySubUrl()"><i class="fas fa-copy"></i> 复制</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Protocol Links -->
+        <div class="info-card">
+            <h3><i class="fas fa-plug"></i> 代理协议链接</h3>
+            <div class="protocol-links" id="protocolLinks"></div>
+        </div>
+
+        <!-- Change Password -->
+        <div class="info-card">
+            <h3><i class="fas fa-key"></i> 修改密码</h3>
+            <div class="pwd-form">
+                <div class="form-group">
+                    <label>旧密码</label>
+                    <input type="password" id="oldPwd" placeholder="输入旧密码">
+                </div>
+                <div class="form-group">
+                    <label>新密码</label>
+                    <input type="password" id="newPwd" placeholder="输入新密码（至少6位）">
+                </div>
+                <button class="btn btn-primary" onclick="changePwd()">
+                    <i class="fas fa-save"></i> 确认修改
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Modal -->
+    <div class="qr-modal" id="qrModal">
+        <div class="qr-container">
+            <canvas id="qrCanvas" width="200" height="200"></canvas>
+            <p id="qrProtocol"></p>
+            <button class="qr-close" onclick="closeQrModal()">关闭</button>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast">
+        <i class="fas fa-check-circle toast-icon"></i>
+        <span id="toastMsg"></span>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+        const API = window.location.origin;
+        let currentUser = null;
+        let currentConfigs = [];
+
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '永久';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('zh-CN');
+        }
+
+        function showToast(msg, type='success') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function getAuthHeader() {
+            const u = document.getElementById('loginUsername').value;
+            const p = document.getElementById('loginPassword').value;
+            return 'Basic ' + btoa(u + ':' + p);
+        }
+
+        async function doLogin() {
+            const u = document.getElementById('loginUsername').value.trim();
+            const p = document.getElementById('loginPassword').value;
+            if (!u || !p) { showToast('请输入用户名和密码', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/api/user/info`, {
+                    headers: {'Authorization': 'Basic ' + btoa(u + ':' + p)}
+                });
+                const data = await res.json();
+                if (data.success) {
+                    currentUser = data.user;
+                    document.getElementById('loginBox').style.display = 'none';
+                    document.getElementById('userPanel').classList.add('active');
+                    renderUserInfo();
+                    showToast('登录成功', 'success');
+                } else {
+                    showToast(data.error || '登录失败', 'error');
+                }
+            } catch (e) {
+                showToast('登录失败', 'error');
+            }
+        }
+
+        function renderUserInfo() {
+            const u = currentUser;
+            document.getElementById('panelUsername').textContent = u.username;
+
+            // Stats
+            const used = u.flow_used || 0;
+            const total = u.flow_limit || 0;
+            const remain = Math.max(0, total - used);
+            const percent = total > 0 ? (used / total * 100).toFixed(1) : 0;
+            const flowClass = percent > 80 ? 'high' : percent > 50 ? 'medium' : 'low';
+
+            document.getElementById('statUsed').textContent = formatBytes(used);
+            document.getElementById('statRemain').textContent = formatBytes(remain);
+            document.getElementById('statExpire').textContent = formatDate(u.expire_time);
+            document.getElementById('flowUsed').textContent = formatBytes(used);
+            document.getElementById('flowTotal').textContent = formatBytes(total);
+            document.getElementById('flowPercent').textContent = percent + '%';
+            const fill = document.getElementById('flowFill');
+            fill.style.width = percent + '%';
+            fill.className = `fill ${flowClass}`;
+
+            // Subscription
+            document.getElementById('subUrl').value = `${API}${u.subscription_url}`;
+
+            // Protocol links
+            renderConfigs(u.configs || []);
+        }
+
+        function renderConfigs(configs) {
+            const div = document.getElementById('protocolLinks');
+            div.innerHTML = '';
+            if (!configs || configs.length === 0) {
+                div.innerHTML = '<p style="color:var(--text-dim);text-align:center;padding:20px;">暂无节点配置</p>';
+                return;
+            }
+            configs.forEach(cfg => {
+                // Node header
+                const header = document.createElement('div');
+                header.style.cssText = 'margin-top:15px;margin-bottom:8px;padding:6px 10px;background:rgba(99,102,241,0.15);border-radius:6px;font-size:12px;font-weight:600;color:var(--primary);';
+                header.innerHTML = `<i class="fas fa-server"></i> ${cfg.node} (${cfg.host}:${cfg.port})`;
+                div.appendChild(header);
+                addLink(div, 'SS', cfg.ss);
+                addLink(div, 'Vmess', cfg.vmess);
+                addLink(div, 'Trojan', cfg.trojan);
+                addLink(div, 'VLESS', cfg.vless);
+            });
+        }
+
+        function addLink(container, protocol, url) {
+            if (!url) return;
+            const div = document.createElement('div');
+            div.className = `link-item ${protocol.toLowerCase()}`;
+            div.innerHTML = `
+                <span class="protocol">${protocol}</span>
+                <input type="text" class="url-input" value="${url}" readonly>
+                <button class="copy-btn" onclick="copyToClipboard('${url.replace(/'/g, "\\'")}')"><i class="fas fa-copy"></i></button>
+                <button class="qr-btn" onclick="showQR('${url.replace(/'/g, "\\'")}', '${protocol}')"><i class="fas fa-qrcode"></i></button>
+            `;
+            container.appendChild(div);
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => showToast('已复制', 'success'));
+        }
+
+        function copySubUrl() {
+            copyToClipboard(document.getElementById('subUrl').value);
+        }
+
+        function showQR(url, protocol) {
+            document.getElementById('qrModal').classList.add('active');
+            document.getElementById('qrProtocol').textContent = protocol + ' 二维码';
+            const canvas = document.getElementById('qrCanvas');
+            canvas.innerHTML = '';
+            new QRCode(canvas, { text: url, width: 200, height: 200 });
+        }
+
+        function closeQrModal() {
+            document.getElementById('qrModal').classList.remove('active');
+        }
+
+        async function changePwd() {
+            const oldPwd = document.getElementById('oldPwd').value;
+            const newPwd = document.getElementById('newPwd').value;
+            if (!oldPwd || !newPwd) { showToast('请填写完整', 'error'); return; }
+            if (newPwd.length < 6) { showToast('新密码至少6位', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/api/user/password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': getAuthHeader()
+                    },
+                    body: JSON.stringify({new_password: newPwd})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('密码修改成功', 'success');
+                    document.getElementById('oldPwd').value = '';
+                    document.getElementById('newPwd').value = '';
+                } else {
+                    showToast(data.error || '修改失败', 'error');
+                }
+            } catch (e) {
+                showToast('修改失败', 'error');
+            }
+        }
+
+        function logout() {
+            currentUser = null;
+            document.getElementById('loginBox').style.display = 'block';
+            document.getElementById('userPanel').classList.remove('active');
+            document.getElementById('loginUsername').value = '';
+            document.getElementById('loginPassword').value = '';
+        }
+
+        // Enter key
+        document.getElementById('loginPassword').addEventListener('keyup', e => {
+            if (e.key === 'Enter') doLogin();
+        });
+    </script>
+</body>
+</html>

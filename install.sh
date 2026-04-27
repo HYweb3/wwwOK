@@ -104,6 +104,9 @@ download_web_files() {
     curl -sL "${WEB_URL}/index.html" -o ${WORK_DIR}/web/index.html || {
         log_error "下载 index.html 失败"
     }
+    curl -sL "${WEB_URL}/user.html" -o ${WORK_DIR}/web/user.html || {
+        log_warn "下载 user.html 失败（用户面板不可用）"
+    }
     log_success "Web 前端文件下载完成"
 }
 
@@ -369,7 +372,7 @@ def reload_singbox_config():
         subprocess.run(['killall', '-HUP', 'sing-box'], capture_output=True, timeout=5)
     except: pass
 
-def create_user(username, expire_days=30, flow_limit_gb=100):
+def create_user(username, expire_days=365, flow_limit_gb=1000):
     conn = get_db_conn(); c = conn.cursor()
     password = generate_password()
     user_uuid = generate_uuid()
@@ -447,6 +450,23 @@ def verify_admin(username, password):
         if hashlib.sha256(password.encode('utf-8')).hexdigest() == admin[2]: return True
     return False
 
+def verify_user(username, password):
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE username=?", (username,)); user = c.fetchone(); conn.close()
+    if user and user[4] == 1:  # enable=1
+        if password == user[2]: return {'id': user[0], 'username': user[1], 'uuid': user[3], 'auth_id': user[10]}
+    return None
+
+def update_user_password_by_user(username, old_password, new_password):
+    conn = get_db_conn(); c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE username=?", (username,)); user = c.fetchone()
+    if not user or user[2] != old_password:
+        conn.close(); return False, '旧密码错误'
+    c.execute("UPDATE users SET password=? WHERE username=?", (new_password, username))
+    conn.commit(); conn.close()
+    reload_singbox_config()
+    return True, '修改成功'
+
 def update_admin_password(username, new_password):
     conn = get_db_conn(); c = conn.cursor()
     hashed = hashlib.sha256(new_password.encode('utf-8')).hexdigest()
@@ -497,6 +517,38 @@ class APIHandler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == '/health':
             self.send_json({'status': 'ok'}); return
+        if path == '/api/stats':
+            # Real online node count = check sing-box process exists
+            import subprocess
+            try:
+                r = subprocess.run(['systemctl', 'is-active', 'sing-box'], capture_output=True, text=True, timeout=5)
+                online_nodes = 1 if r.stdout.strip() == 'active' else 0
+            except:
+                online_nodes = 0
+            conn = get_db_conn(); c = conn.cursor()
+            c.execute("SELECT COUNT(*) FROM users"); total_users = c.fetchone()[0]
+            conn.close()
+            self.send_json({'online_nodes': online_nodes, 'total_users': total_users}); return
+        if path == '/api/user/info':
+            # User panel: get own info via Basic Auth (username:password)
+            auth_header = self.headers.get('Authorization', '')
+            if auth_header.startswith('Basic '):
+                try:
+                    decoded = base64.b64decode(auth_header[6:]).decode('utf-8')
+                    username, password = decoded.split(':', 1)
+                    user = verify_user(username, password)
+                    if user:
+                        full_user = get_user(user['id'])
+                        nodes = get_nodes()
+                        full_user['configs'] = generate_links(full_user['id'], full_user['uuid'], full_user['password'], nodes)
+                        full_user['subscription_url'] = f"/subscribe/{full_user['auth_id']}"
+                        del full_user['password']
+                        self.send_json({'success': True, 'user': full_user})
+                    else:
+                        self.send_json({'success': False, 'error': 'Invalid credentials'}, 401)
+                except: self.send_json({'success': False, 'error': 'Invalid auth format'}, 401)
+            else: self.send_json({'success': False, 'error': 'No auth header'}, 401)
+            return
         if path.startswith('/subscribe/'):
             auth_id = path.split('/')[-1]; user = get_user_by_auth(auth_id)
             if not user or not user['enable']: self.send_error(404); return
@@ -536,7 +588,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 if u: result.append({'user': user['username'], 'user_id': user['id'],
                                      'links': generate_links(u['id'], u['uuid'], u['password'], nodes)})
             self.send_json({'data': result}); return
-        static_map = {'/': '/opt/wwwOK/web/index.html', '/index.html': '/opt/wwwOK/web/index.html'}
+        static_map = {'/': '/opt/wwwOK/web/index.html', '/index.html': '/opt/wwwOK/web/index.html', '/user.html': '/opt/wwwOK/web/user.html', '/user': '/opt/wwwOK/web/user.html'}
         if path in static_map and os.path.exists(static_map[path]):
             self.send_response(200)
             if path.endswith('.html'): self.send_header('Content-Type', 'text/html')
@@ -553,7 +605,7 @@ class APIHandler(BaseHTTPRequestHandler):
         except: data = {}
         if path == '/api/user/create':
             try:
-                result = create_user(data.get('username', ''), int(data.get('expire_days', 30)), int(data.get('flow_limit_gb', 100)))
+                result = create_user(data.get('username', ''), int(data.get('expire_days', 365)), int(data.get('flow_limit_gb', 1000)))
                 nodes = get_nodes()
                 result['configs'] = generate_links(result['id'], result['uuid'], result['password'], nodes) if nodes else []
                 self.send_json({'success': True, 'user': result})
@@ -580,7 +632,20 @@ class APIHandler(BaseHTTPRequestHandler):
             if update_admin_password('admin', new_password): self.send_json({'success': True})
             else: self.send_json({'success': False, 'error': 'Update failed'}, 400)
             return
-        if path.startswith('/api/user/password/'):
+        if path == '/api/user/password':
+            # User changes own password (via Basic Auth in header)
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Basic '): self.send_json({'success': False, 'error': 'No auth'}, 401); return
+            try:
+                decoded = base64.b64decode(auth_header[6:]).decode('utf-8')
+                username, old_password = decoded.split(':', 1)
+                new_password = data.get('new_password', '')
+                if len(new_password) < 6: self.send_json({'success': False, 'error': 'Password too short'}, 400); return
+                ok, msg = update_user_password_by_user(username, old_password, new_password)
+                self.send_json({'success': ok, 'error': msg if not ok else None})
+            except: self.send_json({'success': False, 'error': 'Invalid request'}, 400)
+            return
+        if path.startswith('/api/user/delete/'):
             try:
                 user_id = int(path.split('/')[-1])
                 new_password = data.get('new_password', '')

@@ -885,11 +885,11 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label>流量限制 (GB)</label>
-                        <input type="number" id="newFlowLimit" value="100">
+                        <input type="number" id="newFlowLimit" value="1000">
                     </div>
                     <div class="form-group">
                         <label>到期天数</label>
-                        <input type="number" id="newExpireDays" value="30">
+                        <input type="number" id="newExpireDays" value="365">
                     </div>
                 </div>
                 <button class="btn btn-primary" style="width:100%" onclick="createUser()">
@@ -960,6 +960,34 @@
         </div>
     </div>
     
+    <!-- Node List Modal (shown when clicking username) -->
+    <div class="modal-overlay" id="nodeListModal">
+        <div class="modal" style="max-width:600px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-server"></i> 节点列表</h3>
+                <button class="modal-close" onclick="closeModal('nodeListModal')">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>节点名称</th>
+                                <th>地址</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="nodeListTable">
+                            <tr><td colspan="3" class="loading"><div class="spinner"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- QR Modal -->
     <div class="qr-modal" id="qrModal">
         <div class="qr-container">
@@ -981,11 +1009,27 @@
         const API = window.location.origin;
         
         // Load data
+        async function loadStats() {
+            try {
+                const res = await fetch(`${API}/api/stats`);
+                const data = await res.json();
+                document.getElementById('onlineUsers').textContent = data.online_nodes;
+                document.getElementById('totalUsers').textContent = data.total_users;
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        
         async function loadUsers() {
             try {
                 const res = await fetch(`${API}/api/users`);
                 const data = await res.json();
                 renderUsers(data.users || []);
+                // also refresh total bandwidth from users
+                const users = data.users || [];
+                const totalBandwidth = users.reduce((sum, u) => sum + (u.flow_limit || 0), 0);
+                document.getElementById('totalBandwidth').textContent = formatBytes(totalBandwidth);
+                loadStats();
             } catch (e) {
                 console.error(e);
             }
@@ -1020,7 +1064,7 @@
                             <div class="user-info">
                                 <div class="user-avatar">${user.username.charAt(0).toUpperCase()}</div>
                                 <div>
-                                    <div style="font-weight:500;">${user.username}</div>
+                                    <div style="font-weight:500;cursor:pointer;color:var(--primary);" onclick="showNodeListModal('${user.username}')">${user.username}</div>
                                     <div style="font-size:12px;color:var(--text-dim);">ID: ${user.id}</div>
                                 </div>
                             </div>
@@ -1101,6 +1145,32 @@
         
         function showNodeModal() {
             document.getElementById('nodeModal').classList.add('active');
+        }
+        
+        async function showNodeListModal(username) {
+            document.getElementById('nodeListModal').classList.add('active');
+            const tbody = document.getElementById('nodeListTable');
+            tbody.innerHTML = '<tr><td colspan="3" class="loading"><div class="spinner"></div></td></tr>';
+            try {
+                const res = await fetch(`${API}/api/nodes`);
+                const data = await res.json();
+                const nodes = data.nodes || [];
+                if (nodes.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px;color:var(--text-dim);">暂无节点</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = nodes.map(node => {
+                    const statusClass = node.enable ? 'active' : 'disabled';
+                    const statusText = node.enable ? '在线' : '离线';
+                    return `<tr>
+                        <td style="font-weight:500;">${node.name}</td>
+                        <td style="font-family:monospace;font-size:13px;">${node.host}:${node.port}</td>
+                        <td><span class="status-badge ${statusClass}"><i class="fas fa-circle"></i> ${statusText}</span></td>
+                    </tr>`;
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:30px;color:var(--danger);">加载失败</td></tr>';
+            }
         }
         
         function closeModal(id) {
