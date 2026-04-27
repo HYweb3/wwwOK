@@ -101,6 +101,18 @@ def get_user(user_id):
                 'last_login': user[9], 'auth_id': user[10]}
     return None
 
+def get_user_by_username(username):
+    conn = get_db_conn()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE username=?", (username,))
+    user = c.fetchone()
+    conn.close()
+    if user:
+        return {'id': user[0], 'username': user[1], 'password': user[2], 'uuid': user[3], 'enable': user[4],
+                'flow_limit': user[5], 'flow_used': user[6], 'expire_time': user[7], 'created_time': user[8],
+                'last_login': user[9], 'auth_id': user[10]}
+    return None
+
 def get_user_by_auth(auth_id):
     conn = get_db_conn()
     c = conn.cursor()
@@ -443,15 +455,15 @@ class APIHandler(BaseHTTPRequestHandler):
                     self.send_json({'success': False, 'error': 'cannot detect server IP'}, 400)
                     return
 
-                # Create default node if not exists
+                # Create default node if not exists, always return node info
                 existing_nodes = get_nodes()
-                node_id = None
                 if not existing_nodes:
-                    node_id = add_node('wwwok', ip, 9000)
+                    add_node('wwwok', ip, 9000)
+                    existing_nodes = get_nodes()
+                node_result = existing_nodes[0] if existing_nodes else None
 
-                # Create default user if not exists
+                # Create default user if not exists, always return user info
                 existing_users = list_users()
-                user_result = None
                 if not existing_users:
                     conn = get_db_conn()
                     c = conn.cursor()
@@ -463,14 +475,15 @@ class APIHandler(BaseHTTPRequestHandler):
                     c.execute("INSERT INTO users (username, password, uuid, expire_time, flow_limit, created_time, auth_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
                               ('wwwok', pwd, _uuid, expire, 10*1024*1024*1024*1024, now, _auth))
                     conn.commit()
-                    uid = c.lastrowid
                     conn.close()
                     reload_singbox_config()
-                    nodes = get_nodes()
-                    user_result = {'id': uid, 'username': 'wwwok', 'password': pwd,
-                                   'uuid': _uuid, 'auth_id': _auth,
-                                   'configs': generate_links(uid, _uuid, pwd, nodes)}
-                self.send_json({'success': True, 'node_id': node_id, 'user': user_result, 'server_ip': ip})
+                user_result = get_user_by_username('wwwok')
+                self.send_json({
+                    'success': True,
+                    'node': node_result,
+                    'user': user_result,
+                    'server_ip': ip
+                })
             except Exception as e:
                 self.send_json({'success': False, 'error': str(e)}, 400)
             return

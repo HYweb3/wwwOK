@@ -325,11 +325,19 @@ do_install() {
         -H "Content-Type: application/json" 2>/dev/null)
 
     if echo "$INIT_RESP" | grep -q '"success" *: *true'; then
-        USER_PASS=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('user',{}).get('password','N/A'))" 2>/dev/null)
-        AUTH_ID=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('user',{}).get('auth_id','N/A'))" 2>/dev/null)
-        SERVER_IP=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('server_ip','<IP>'))" 2>/dev/null)
+        # 提取返回数据
+        USER_NAME=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); u=d.get('user',{}); print(u.get('username','wwwok') if u else 'wwwok')" 2>/dev/null)
+        USER_PASS=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); u=d.get('user',{}); print(u.get('password','@user8888999') if u else '@user8888999')" 2>/dev/null)
+        AUTH_ID=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); u=d.get('user',{}); print(u.get('auth_id','') if u else '')" 2>/dev/null)
+        SERVER_IP=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('server_ip',''))" 2>/dev/null)
+        API_PORT=$(cat /opt/wwwOK/config/port.txt 2>/dev/null || echo "8888")
+        [ -z "$SERVER_IP" ] && SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null)
+        [ -z "$SERVER_IP" ] && SERVER_IP="<服务器IP>"
         echo -e "  ${GREEN}默认节点 wwwok 已创建${NC}"
         echo -e "  ${GREEN}默认用户 wwwok 已创建${NC}"
+        if [ -n "$AUTH_ID" ] && [ -n "$SERVER_IP" ]; then
+            echo -e "  ${CYAN}订阅地址: ${NC}http://${SERVER_IP}:${API_PORT}/subscribe/${AUTH_ID}"
+        fi
     else
         SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
         [ -z "$SERVER_IP" ] && SERVER_IP="<服务器IP>"
