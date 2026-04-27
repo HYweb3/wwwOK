@@ -111,7 +111,6 @@ create_directories() {
     
     mkdir -p ${WORK_DIR}/{bin,config,web/admin,db,logs,scripts}
     mkdir -p /var/log/wwwOK
-    chmod +x ${WORK_DIR}/bin/sing-box
     
     log_success "目录创建完成"
 }
