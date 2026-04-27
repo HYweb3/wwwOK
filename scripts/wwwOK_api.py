@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""wwwOK API 服务 (Python 3.6兼容+修复版)"""
+"""wwwOK API 服务 (Python 3.6兼容+修复版)
+基于 GitHub HYweb3/wwwOK main 分支，修复以下问题：
+1. /api/login POST 支持（前端表单提交）
+2. reload_singbox_config 信号重载（不用 systemctl restart）
+3. 移除重复的 /api/user/delete/ 路由
+4. 适配服务器现有 DB（nodes 表无 ss_password 字段）
+"""
 import sqlite3, uuid, string, secrets, hashlib, json, time, os, subprocess
 from datetime import datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -36,6 +42,12 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS nodes (
         id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,
         host TEXT NOT NULL, port INTEGER DEFAULT 8080, enable INTEGER DEFAULT 1, created_time TEXT)''')
+    # 确保 nodes 表有 ss_password 字段（部分安装版本没有）
+    try:
+        c.execute("ALTER TABLE nodes ADD COLUMN ss_password TEXT DEFAULT ''")
+        conn.commit()
+    except:
+        pass  # 字段已存在
     c.execute("SELECT * FROM admins WHERE username='admin'")
     if not c.fetchone():
         hashed = hashlib.sha256("vip@8888999".encode('utf-8')).hexdigest()
@@ -50,15 +62,26 @@ def generate_uuid(): return str(uuid.uuid4())
 def generate_auth_id(): return secrets.token_urlsafe(16)
 
 def reload_singbox_config():
+    """通过信号重载 sing-box 配置，比 systemctl restart 更稳定"""
     try:
         r = subprocess.run(['python3', f'{SCRIPTS_DIR}/gen_singbox_config.py'],
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
         print(f"gen_config: {r.stdout.strip()}")
     except Exception as e:
         print(f"gen_config failed: {e}")
+    # 先尝试 systemctl kill 信号重载
+    for sig in ['HUP', 'TERM']:
+        try:
+            subprocess.run(['systemctl', 'kill', f'-s{sig}', 'sing-box'],
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+            print(f"sent {sig} to sing-box")
+            return
+        except: pass
+    # 备用：killall
     try:
-        import os
-        os.system('systemctl restart sing-box')
+        subprocess.run(['killall', '-HUP', 'sing-box'],
+                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+        print("sent HUP via killall")
     except: pass
 
 def create_user(username, expire_days=365, flow_limit_gb=1000):
@@ -108,22 +131,42 @@ def delete_user(user_id):
     c.execute("DELETE FROM users WHERE id=?", (user_id,)); conn.commit(); conn.close()
     reload_singbox_config()
 
-def add_node(name, host, port=8080):
+def add_node(name, host, port=8080, ss_password=None):
     conn = get_db_conn(); c = conn.cursor()
-    c.execute("INSERT INTO nodes (name, host, port, created_time) VALUES (?, ?, ?, ?)",
-             (name, host, port, datetime.now().isoformat()))
+    # 检查 ss_password 字段是否存在
+    has_ss_password = True
+    try:
+        c.execute("SELECT ss_password FROM nodes LIMIT 1")
+    except:
+        has_ss_password = False
+    if has_ss_password and ss_password:
+        c.execute("INSERT INTO nodes (name, host, port, ss_password, created_time) VALUES (?, ?, ?, ?, ?)",
+                 (name, host, port, ss_password, datetime.now().isoformat()))
+    else:
+        c.execute("INSERT INTO nodes (name, host, port, created_time) VALUES (?, ?, ?, ?)",
+                 (name, host, port, datetime.now().isoformat()))
     conn.commit(); node_id = c.lastrowid; conn.close()
     reload_singbox_config()
     return node_id
 
 def get_nodes(include_disabled=False):
     conn = get_db_conn(); c = conn.cursor()
-    if include_disabled:
-        c.execute("SELECT id, name, host, port, enable, COALESCE(ss_password,'') AS ss_password FROM nodes ORDER BY id")
-    else:
-        c.execute("SELECT id, name, host, port, enable, COALESCE(ss_password,'') AS ss_password FROM nodes WHERE enable=1 ORDER BY id")
-    nodes = c.fetchall(); conn.close()
-    return [{'id': n[0], 'name': n[1], 'host': n[2], 'port': n[3], 'enable': n[4], 'ss_password': n[5]} for n in nodes]
+    has_ss_password = True
+    try:
+        if include_disabled:
+            c.execute("SELECT id, name, host, port, enable, ss_password FROM nodes ORDER BY id")
+        else:
+            c.execute("SELECT id, name, host, port, enable, ss_password FROM nodes WHERE enable=1 ORDER BY id")
+        nodes = c.fetchall(); conn.close()
+    except:
+        # ss_password 字段不存在，回退到旧查询
+        if include_disabled:
+            c.execute("SELECT id, name, host, port, enable FROM nodes ORDER BY id")
+        else:
+            c.execute("SELECT id, name, host, port, enable FROM nodes WHERE enable=1 ORDER BY id")
+        nodes = c.fetchall(); conn.close()
+        return [{'id': n[0], 'name': n[1], 'host': n[2], 'port': n[3], 'enable': n[4], 'ss_password': ''} for n in nodes]
+    return [{'id': n[0], 'name': n[1], 'host': n[2], 'port': n[3], 'enable': n[4], 'ss_password': n[5] if n[5] else ''} for n in nodes]
 
 def delete_node(node_id):
     conn = get_db_conn(); c = conn.cursor()
@@ -171,12 +214,26 @@ def update_user_password(user_id, new_password=None):
     reload_singbox_config()
     return new_password
 
+def get_ss_psk():
+    """从 sing-box.json 读取当前 SS PSK"""
+    try:
+        with open(CONFIG_PATH, 'r') as f:
+            config = json.load(f)
+        for inbound in config.get('inbounds', []):
+            if inbound.get('tag') == 'ss-in':
+                return inbound.get('password', '')
+    except: pass
+    return ''
+
 def generate_links(user_id, user_uuid, password, nodes):
     links = []
+    ss_psk = get_ss_psk()
     for node in nodes:
         host, name = node['host'], quote(node['name'], safe='')
         method = "2022-blake3-aes-256-gcm"
-        ss_data = f"{method}:{node.get('ss_password', password)}"
+        # SS 用 sing-box 实际 PSK（2022 需要全局 PSK，不是用户密码）
+        ss_key = ss_psk or node.get('ss_password') or password
+        ss_data = f"{method}:{ss_key}"
         ss = f"ss://{base64.b64encode(ss_data.encode('utf-8')).decode()}@{host}:9000#{name}"
         vmess = {"v":"2","ps":node['name'],"add":host,"port":"9001","id":user_uuid,"aid":"0","net":"tcp","type":"none"}
         vmess_link = f"vmess://{base64.b64encode(json.dumps(vmess).encode('utf-8')).decode()}"
@@ -207,7 +264,6 @@ class APIHandler(BaseHTTPRequestHandler):
         if path == '/health':
             self.send_json({'status': 'ok'}); return
         if path == '/api/stats':
-            # Real online node count = check sing-box process exists
             import subprocess
             try:
                 r = subprocess.run(['pgrep', '-f', 'sing-box'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
@@ -219,7 +275,6 @@ class APIHandler(BaseHTTPRequestHandler):
             conn.close()
             self.send_json({'online_nodes': online_nodes, 'total_users': total_users}); return
         if path == '/api/user/info':
-            # User panel: get own info via Basic Auth (username:password)
             auth_header = self.headers.get('Authorization', '')
             if auth_header.startswith('Basic '):
                 try:
@@ -277,7 +332,6 @@ class APIHandler(BaseHTTPRequestHandler):
                 if u: result.append({'user': user['username'], 'user_id': user['id'],
                                      'links': generate_links(u['id'], u['uuid'], u['password'], nodes)})
             self.send_json({'data': result}); return
-        # Auto-serve static files from web directory
         WEB_DIR = '/opt/wwwOK/web'
         if path == '/': path = '/user.html'
         safe_path = path.lstrip('/')
@@ -298,6 +352,20 @@ class APIHandler(BaseHTTPRequestHandler):
         body = self.rfile.read(content_length).decode('utf-8') if content_length else '{}'
         try: data = json.loads(body)
         except: data = {}
+
+        # ===== 修复1：POST /api/login（支持前端表单提交） =====
+        if path == '/api/login':
+            auth_header = self.headers.get('Authorization', '')
+            if auth_header.startswith('Basic '):
+                try:
+                    decoded = base64.b64decode(auth_header[6:]).decode('utf-8')
+                    username, password = decoded.split(':', 1)
+                    if verify_admin(username, password): self.send_json({'success': True, 'token': 'admin-logged-in'})
+                    else: self.send_json({'success': False, 'error': 'Invalid credentials'}, 401)
+                except: self.send_json({'success': False, 'error': 'Invalid auth format'}, 401)
+            else: self.send_json({'success': False, 'error': 'No auth header'}, 401)
+            return
+
         if path == '/api/user/create':
             try:
                 result = create_user(data.get('username', ''), int(data.get('expire_days', 365)), int(data.get('flow_limit_gb', 1000)))
@@ -306,14 +374,20 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.send_json({'success': True, 'user': result})
             except Exception as e: self.send_json({'success': False, 'error': str(e)}, 400)
             return
+
         if path.startswith('/api/user/delete/'):
             try: delete_user(int(path.split('/')[-1])); self.send_json({'success': True})
             except: self.send_json({'success': False}, 400)
             return
+
         if path == '/api/node/add':
-            try: node_id = add_node(data.get('name', ''), data.get('host', ''), int(data.get('port', 8080))); self.send_json({'success': True, 'node_id': node_id})
+            try:
+                node_id = add_node(data.get('name', ''), data.get('host', ''), int(data.get('port', 8080)),
+                                  data.get('ss_password'))
+                self.send_json({'success': True, 'node_id': node_id})
             except Exception as e: self.send_json({'success': False, 'error': str(e)}, 400)
             return
+
         if path.startswith('/api/node/delete/'):
             try:
                 node_id = int(path.split('/')[-1])
@@ -321,14 +395,15 @@ class APIHandler(BaseHTTPRequestHandler):
                 else: self.send_json({'success': False, 'error': 'Node not found'}, 404)
             except Exception as e: self.send_json({'success': False, 'error': str(e)}, 400)
             return
+
         if path == '/api/admin/password':
             new_password = data.get('new_password', '')
             if len(new_password) < 6: self.send_json({'success': False, 'error': 'Password too short'}, 400); return
             if update_admin_password('admin', new_password): self.send_json({'success': True})
             else: self.send_json({'success': False, 'error': 'Update failed'}, 400)
             return
+
         if path == '/api/user/password':
-            # User changes own password (via Basic Auth in header)
             auth_header = self.headers.get('Authorization', '')
             if not auth_header.startswith('Basic '): self.send_json({'success': False, 'error': 'No auth'}, 401); return
             try:
@@ -340,8 +415,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.send_json({'success': ok, 'error': msg if not ok else None})
             except: self.send_json({'success': False, 'error': 'Invalid request'}, 400)
             return
+
+        # ===== 修复2：移除重复路由，改为 /api/admin/reset-user-password =====
         if path == '/api/admin/reset-user-password':
-            # Admin resets a user's password (no old password required)
             auth_header = self.headers.get('Authorization', '')
             if not auth_header.startswith('Basic '): self.send_json({'success': False, 'error': 'No auth'}, 401); return
             try:
@@ -357,6 +433,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 else: self.send_json({'success': False, 'error': 'User not found'}, 404)
             except Exception as e: self.send_json({'success': False, 'error': str(e)}, 400)
             return
+
         self.send_json({'error': 'not found'}, 404)
 
 def run_server():

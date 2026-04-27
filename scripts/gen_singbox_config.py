@@ -21,36 +21,35 @@ def get_all_users():
 def get_all_nodes():
     conn = get_db_conn()
     c = conn.cursor()
-    c.execute("SELECT id, name, host, port, enable, COALESCE(ss_password,'') AS ss_password FROM nodes WHERE enable=1")
+    c.execute("SELECT id, name, host, port, enable FROM nodes WHERE enable=1")
     nodes = c.fetchall()
     conn.close()
-    return [{'id': n[0], 'name': n[1], 'host': n[2], 'port': n[3], 'enable': n[4], 'ss_password': n[5]} for n in nodes]
+    return [{'id': n[0], 'name': n[1], 'host': n[2], 'port': n[3], 'enable': n[4]} for n in nodes]
+
+PSK_FILE = "/opt/wwwOK/db/ss_psk.txt"
 
 def gen_ss2022_psk():
     return base64.b64encode(os.urandom(32)).decode()
 
-def save_ss_password(node_id, psk):
-    conn = get_db_conn()
-    conn.execute("UPDATE nodes SET ss_password=? WHERE id=?", (psk, node_id))
-    conn.commit()
-    conn.close()
+def get_stable_psk():
+    """读取稳定的 PSK，不存在则创建"""
+    try:
+        if os.path.exists(PSK_FILE):
+            with open(PSK_FILE, 'r') as f:
+                return f.read().strip()
+    except: pass
+    # 不存在则创建
+    psk = gen_ss2022_psk()
+    try:
+        with open(PSK_FILE, 'w') as f:
+            f.write(psk)
+    except: pass
+    return psk
 
 def generate_config():
     users = get_all_users()
     nodes = get_all_nodes()
-
-    # Reuse existing PSK from DB, only generate if not present
-    for node in nodes:
-        if node['ss_password']:
-            print(f"Reuse PSK for node {node['id']}: {node['ss_password'][:20]}...")
-        else:
-            new_psk = gen_ss2022_psk()
-            node['ss_password'] = new_psk
-            save_ss_password(node['id'], new_psk)
-            print(f"Generated new PSK for node {node['id']}: {new_psk[:20]}...")
-
-    # Use first node's PSK for the global SS inbound
-    ss_global_psk = nodes[0]['ss_password'] if nodes else gen_ss2022_psk()
+    ss_global_psk = get_stable_psk()
 
     inbounds = [
         {
@@ -66,21 +65,21 @@ def generate_config():
             "type": "vmess",
             "listen": "0.0.0.0",
             "listen_port": 9001,
-            "users": [{"uuid": u["uuid"]} for u in users]
+            "users": [{"id": u["uuid"], "email": u["username"]} for u in users]
         },
         {
             "tag": "trojan-in",
             "type": "trojan",
             "listen": "0.0.0.0",
             "listen_port": 9002,
-            "users": [{"password": u["password"]} for u in users]
+            "users": [{"password": u["password"], "email": u["username"]} for u in users]
         },
         {
             "tag": "vless-in",
             "type": "vless",
             "listen": "0.0.0.0",
             "listen_port": 9003,
-            "users": [{"uuid": u["uuid"], "flow": "xtls-rprx-vision"} for u in users]
+            "users": [{"id": u["uuid"], "email": u["username"]} for u in users]
         }
     ]
 
@@ -96,13 +95,15 @@ def generate_config():
 
     for sig in ['HUP', 'TERM']:
         try:
-            subprocess.run(['systemctl', 'kill', f'-s{sig}', 'sing-box'], capture_output=True, timeout=5)
+            subprocess.run(['systemctl', 'kill', f'-s{sig}', 'sing-box'],
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
             print(f"sing-box reloaded via systemctl -s{sig}")
             return
         except:
             pass
     try:
-        subprocess.run(['killall', '-HUP', 'sing-box'], capture_output=True, timeout=5)
+        subprocess.run(['killall', '-HUP', 'sing-box'],
+                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
         print("sing-box reloaded via killall")
     except:
         print("Warning: could not reload sing-box, restart manually if needed")
