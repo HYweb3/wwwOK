@@ -24,6 +24,10 @@ SCRIPTS_DIR = "/opt/wwwOK/scripts"
 PORT = 8888
 
 def get_db_conn():
+    # 确保 db 目录存在
+    db_dir = os.path.dirname(DB_PATH)
+    if not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.text_factory = str
     return conn

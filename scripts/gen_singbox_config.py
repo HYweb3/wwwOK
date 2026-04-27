@@ -7,6 +7,9 @@ DB_PATH = "/opt/wwwOK/db/users.db"
 CONFIG_PATH = "/opt/wwwOK/config/sing-box.json"
 
 def get_db_conn():
+    db_dir = os.path.dirname(DB_PATH)
+    if not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.text_factory = str
     return conn
