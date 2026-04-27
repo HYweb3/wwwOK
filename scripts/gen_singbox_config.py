@@ -38,7 +38,6 @@ def get_stable_psk():
             with open(PSK_FILE, 'r') as f:
                 return f.read().strip()
     except: pass
-    # 不存在则创建
     psk = gen_ss2022_psk()
     try:
         with open(PSK_FILE, 'w') as f:
@@ -95,12 +94,11 @@ def generate_config():
 
     for sig in ['HUP', 'TERM']:
         try:
-            subprocess.run(['systemctl', 'kill', f'-s{sig}', 'sing-box'],
+            subprocess.run(['systemctl', 'kill', '-s'+sig, 'sing-box'],
                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
-            print(f"sing-box reloaded via systemctl -s{sig}")
+            print(f"sing-box reloaded via systemctl -{sig}")
             return
-        except:
-            pass
+        except: pass
     try:
         subprocess.run(['killall', '-HUP', 'sing-box'],
                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
