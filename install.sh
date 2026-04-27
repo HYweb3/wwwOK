@@ -1127,18 +1127,24 @@ do_change_password() {
     if [ -z "$newpass" ] || [ ${#newpass} -lt 6 ]; then
         print_status FAIL "密码长度至少6位"; return
     fi
-    HASH=$($PYTHON_CMD -c "import hashlib; print(hashlib.sha256('$newpass'.encode()).hexdigest())")
-    $PYTHON_CMD - << PY
+    # 转义单引号（密码可能含 '）
+    SAFE_PASS=$($PYTHON_CMD -c "print('$newpass'.replace(\"'\", \"'\"'\"'\"'\"'\"'))" 2>/dev/null || echo "$newpass")
+    HASH=$($PYTHON_CMD -c "import hashlib; print(hashlib.sha256(\"${SAFE_PASS}\".encode()).hexdigest())")
+    $PYTHON_CMD - << 'PYEOF'
 import sqlite3
+import os
 try:
+    p = '''${SAFE_PASS}'''
+    import hashlib
+    h = hashlib.sha256(p.encode()).hexdigest()
     conn = sqlite3.connect('/opt/wwwOK/db/users.db')
     c = conn.cursor()
-    c.execute("UPDATE admins SET password=? WHERE username='admin'", ('$HASH',))
+    c.execute("UPDATE admins SET password=? WHERE username='admin'", (h,))
     conn.commit()
     print("密码已更新")
 except Exception as e:
     print("错误: " + str(e))
-PY
+PYEOF
     print_status OK "管理密码已修改为: $newpass"
 }
 
