@@ -591,12 +591,18 @@ class APIHandler(BaseHTTPRequestHandler):
                 if u: result.append({'user': user['username'], 'user_id': user['id'],
                                      'links': generate_links(u['id'], u['uuid'], u['password'], nodes)})
             self.send_json({'data': result}); return
-        static_map = {'/': '/opt/wwwOK/web/index.html', '/index.html': '/opt/wwwOK/web/index.html', '/user.html': '/opt/wwwOK/web/user.html', '/user': '/opt/wwwOK/web/user.html'}
-        if path in static_map and os.path.exists(static_map[path]):
+        # Auto-serve static files from web directory
+        WEB_DIR = '/opt/wwwOK/web'
+        if path == '/': path = '/index.html'
+        safe_path = path.lstrip('/')
+        file_path = os.path.join(WEB_DIR, safe_path)
+        if os.path.isfile(file_path):
             self.send_response(200)
-            if path.endswith('.html'): self.send_header('Content-Type', 'text/html')
+            if safe_path.endswith('.html'): self.send_header('Content-Type', 'text/html')
+            elif safe_path.endswith('.js'): self.send_header('Content-Type', 'application/javascript')
+            elif safe_path.endswith('.css'): self.send_header('Content-Type', 'text/css')
             self.end_headers()
-            with open(static_map[path], 'rb') as f: self.wfile.write(f.read())
+            with open(file_path, 'rb') as f: self.wfile.write(f.read())
             return
         self.send_json({'error': 'not found'}, 404)
 
