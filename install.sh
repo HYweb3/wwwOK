@@ -167,7 +167,7 @@ generate_initial_singbox_config() {
 {
     "log": {"level": "info", "output": "/var/log/wwwOK/sing-box.log", "timestamp": true},
     "inbounds": [
-        {"tag": "transparent", "type": "direct", "listen": "0.0.0.0", "listen_port": 8080, "sniff": true, "sniff_override_destination": true}
+        {"tag": "ss-in", "type": "shadowsocks", "listen": "0.0.0.0", "listen_port": 9000, "method": "2022-blake3-aes-256-gcm", "password": "REPLACE_WITH_DYNAMIC_PSK"}
     ],
     "outbounds": [
         {"tag": "direct", "type": "direct"},
@@ -218,17 +218,36 @@ def generate_config():
     ss_global_psk = gen_ss2022_psk()
 
     inbounds = [
-        {"tag": "transparent", "type": "direct", "listen": "0.0.0.0", "listen_port": 8080, "sniff": True, "sniff_override_destination": True},
-        {"tag": "ss-in", "type": "shadowsocks", "listen": "0.0.0.0", "listen_port": 9000, "method": "2022-blake3-aes-256-gcm", "password": ss_global_psk, "network": "tcp"}
+        {
+            "tag": "ss-in",
+            "type": "shadowsocks",
+            "listen": "0.0.0.0",
+            "listen_port": 9000,
+            "method": "2022-blake3-aes-256-gcm",
+            "password": ss_global_psk
+        },
+        {
+            "tag": "vmess-in",
+            "type": "vmess",
+            "listen": "0.0.0.0",
+            "listen_port": 9001,
+            "users": [{"id": u["uuid"], "email": u["username"]} for u in users]
+        },
+        {
+            "tag": "trojan-in",
+            "type": "trojan",
+            "listen": "0.0.0.0",
+            "listen_port": 9002,
+            "users": [{"password": u["password"], "email": u["username"]} for u in users]
+        },
+        {
+            "tag": "vless-in",
+            "type": "vless",
+            "listen": "0.0.0.0",
+            "listen_port": 9003,
+            "users": [{"id": u["uuid"], "email": u["username"]} for u in users]
+        }
     ]
-
-    for node in nodes:
-        vmess_users = [{'id': u['uuid'], 'email': u['username']} for u in users]
-        trojan_users = [{'password': u['password'], 'email': u['username']} for u in users]
-        vless_users = [{'id': u['uuid'], 'email': u['username']} for u in users]
-        inbounds.append({"tag": f"vmess-{node['id']}", "type": "vmess", "listen": "0.0.0.0", "listen_port": 9001, "users": vmess_users})
-        inbounds.append({"tag": f"trojan-{node['id']}", "type": "trojan", "listen": "0.0.0.0", "listen_port": 9002, "users": trojan_users})
-        inbounds.append({"tag": f"vless-{node['id']}", "type": "vless", "listen": "0.0.0.0", "listen_port": 9003, "users": vless_users})
 
     config = {
         "log": {"level": "info", "output": "/var/log/wwwOK/sing-box.log", "timestamp": True},
@@ -236,7 +255,7 @@ def generate_config():
         "outbounds": [{"tag": "direct", "type": "direct"}, {"tag": "block", "type": "block"}]
     }
 
-    with open(CONFIG_PATH, 'w') as f:
+    with open(CONFIG_PATH, "w") as f:
         json.dump(config, f, indent=4)
     print(f"Generated: {len(users)} users, {len(nodes)} nodes")
 
