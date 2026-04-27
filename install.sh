@@ -142,138 +142,16 @@ install_python_scripts() {
 install_web() {
     echo -e "\n${CYAN}>>> 安装 Web 前端...${NC}"
 
-    cat > "$WEB_DIR/admin.html" << 'HTMLEOF'
-<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>wwwOK 管理面板</title>
-<style>
-body{font-family:Arial,sans-serif;max-width:900px;margin:40px auto;padding:0 20px;background:#f5f5f5}
-h1{color:#333;border-bottom:2px solid #4CAF50;padding-bottom:10px}
-.info-grid{display:grid;grid-template-columns:140px 1fr;gap:8px;margin:20px 0;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
-.label{font-weight:bold;color:#555}
-.value{color:#222;font-family:monospace;word-break:break-all}
-.btn{background:#4CAF50;color:#fff;padding:8px 16px;border:none;border-radius:4px;cursor:pointer;font-size:14px}
-.btn:hover{background:#45a049}.btn-danger{background:#f44336}.btn-danger:hover{background:#da190b}
-input,select{padding:8px 12px;border:1px solid #ddd;border-radius:4px;font-size:14px}
-.status-ok{color:#4CAF50;font-weight:bold}.status-fail{color:#f44336;font-weight:bold}
-table{width:100%;border-collapse:collapse;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
-th,td{padding:10px 14px;text-align:left;border-bottom:1px solid #eee}
-th{background:#4CAF50;color:#fff}tr:hover{background:#f9f9f9}
-.card{background:#fff;padding:20px;border-radius:8px;margin:15px 0;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
-</style></head>
-<body>
-<h1>wwwOK 管理面板</h1>
-<div class="card">
-<div class="info-grid">
-<div class="label">管理面板</div><div class="value"><a href="/admin.html">/admin.html</a></div>
-<div class="label">API 端口</div><div class="value">8888</div>
-<div class="label">代理端口</div><div class="value">SS=9000 | VMess=9001 | Trojan=9002 | VLESS=9003</div>
-<div class="label">管理员</div><div class="value">admin</div>
-<div class="label">默认密码</div><div class="value">vip@8888999 <span style="color:red">(建议修改)</span></div>
-</div></div>
-<h2>服务状态</h2>
-<div class="card"><div id="services" style="font-size:14px">加载中...</div></div>
-<h2>用户管理 <button class="btn" onclick="showCreate()" style="margin-left:15px">+ 新建用户</button></h2>
-<div id="create-form" style="display:none" class="card">
-<h3>新建用户</h3>
-<label>用户名</label><input type="text" id="new-user" placeholder="username" style="width:200px">
-<label>有效期(天)</label><input type="number" id="expire-days" value="365" style="width:100px">
-<label>流量(GB)</label><input type="number" id="flow-limit" value="1000" style="width:100px">
-<br><br>
-<button class="btn" onclick="doCreate()">确认创建</button>
-<button class="btn btn-danger" onclick="hideCreate()">取消</button>
-</div>
-<div class="card"><div id="users">加载中...</div></div>
-<script>
-const AUTH='Basic YWRtaW46dmlwQDg4ODg5OTk=';
-async function api(path,method='GET',body=null){
-  let r=await fetch(path,{method,headers:{'Authorization':AUTH,'Content-Type':'application/json'},body:body?JSON.stringify(body):null});
-  return r.json();
-}
-async function loadInfo(){
-  let r=await api('/api/nodes');
-  let node=r.nodes&&r.nodes[0];
-  let host=node?node.host+':'+node.port:'未配置节点';
-  let sb=await api('/api/stats');
-  let sbRun=sb.online_nodes?'<span class=status-ok>● 运行中</span>':'<span class=status-fail>○ 已停止</span>';
-  document.getElementById('services').innerHTML='<div>sing-box 代理: '+sbRun+' | 用户总数: '+(sb.total_users||0)+'</div>';
-}
-async function loadUsers(){
-  let r=await api('/api/users');
-  if(!r.users||!r.users.length){document.getElementById('users').innerHTML='<p style="color:#888">暂无用户</p>';return;}
-  let html='<table><tr><th>ID</th><th>用户名</th><th>状态</th><th>流量限制</th><th>到期时间</th><th>操作</th></tr>';
-  for(let u of r.users){
-    let flow=(u.flow_limit/1024/1024/1024).toFixed(1)+' GB';
-    let expire=u.expire_time?u.expire_time.slice(0,10):'永久';
-    let enbl=u.enable?'<span class=status-ok>启用</span>':'<span class=status-fail>禁用</span>';
-    html+='<tr><td>'+u.id+'</td><td>'+u.username+'</td><td>'+enbl+'</td><td>'+flow+'</td><td>'+expire+'</td><td>'+
-          '<button class="btn btn-danger" style="padding:4px 10px;font-size:12px" onclick="delUser('+u.id+')">删除</button></td></tr>';
-  }
-  document.getElementById('users').innerHTML=html;
-}
-async function delUser(id){
-  if(!confirm('确认删除用户 ID '+id+'?'))return;
-  await api('/api/user/delete/'+id,'POST');
-  loadUsers();loadInfo();
-}
-function showCreate(){document.getElementById('create-form').style.display='block';}
-function hideCreate(){document.getElementById('create-form').style.display='none';}
-async function doCreate(){
-  let u=document.getElementById('new-user').value;
-  let d=document.getElementById('expire-days').value;
-  let f=document.getElementById('flow-limit').value;
-  if(!u){alert('请输入用户名');return;}
-  let r=await api('/api/user/create','POST',{username:u,expire_days:parseInt(d),flow_limit_gb:parseInt(f)});
-  if(r.success){
-    alert('创建成功!\n用户名: '+r.user.username+'\n密码: '+r.user.password+'\n订阅: /subscribe/'+r.user.auth_id);
-    hideCreate();loadUsers();loadInfo();
-  }else{alert('错误: '+r.error);}
-}
-loadInfo();loadUsers();
-</script></body></html>
-HTMLEOF
+    curl -fsSL "https://raw.githubusercontent.com/HYweb3/wwwOK/main/web/admin.html" \
+        -o "$WEB_DIR/admin.html"
+    curl -fsSL "https://raw.githubusercontent.com/HYweb3/wwwOK/main/web/user.html" \
+        -o "$WEB_DIR/user.html"
+    curl -fsSL "https://raw.githubusercontent.com/HYweb3/wwwOK/main/web/qrcode.min.js" \
+        -o "$WEB_DIR/qrcode.min.js"
+    curl -fsSL "https://raw.githubusercontent.com/HYweb3/wwwOK/main/web/index.html" \
+        -o "$WEB_DIR/index.html"
 
-    cat > "$WEB_DIR/user.html" << 'HTMLEOF'
-<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>我的节点 - wwwOK</title>
-<style>
-body{font-family:Arial,sans-serif;max-width:700px;margin:40px auto;padding:0 20px;background:#f5f5f5}
-h1{color:#333}
-.box{background:#fff;padding:20px;border-radius:8px;margin:15px 0;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
-input{width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:13px;box-sizing:border-box}
-button{background:#4CAF50;color:#fff;padding:10px 20px;border:none;border-radius:4px;cursor:pointer}
-button:hover{background:#45a049}
-pre{background:#f0f0f0;padding:15px;border-radius:4px;overflow-x:auto;font-size:12px;max-height:400px;overflow-y:auto}
-</style></head>
-<body>
-<h1>我的代理节点</h1>
-<div class="box"><div id="info" style="color:#555">加载中...</div></div>
-<div class="box">
-<h2>订阅地址</h2>
-<p>复制下方链接，粘贴到 V2RayN/Clash 等客户端的订阅管理中添加：</p>
-<input type="text" id="sub-url" readonly onclick="this.select()">
-<p style="font-size:12px;color:#888;margin-top:8px">提示：订阅地址终身不变，更新节点信息会自动同步</p>
-</div>
-<div class="box"><h2>直链预览</h2><pre id="links">加载中...</pre></div>
-<script>
-const AUTH='Basic YWRtaW46dmlwQDg4ODg5OTk=';
-async function api(path){let r=await fetch(path,{headers:{'Authorization':AUTH}});return r.json();}
-async function load(){
-  let r=await api('/api/user/info');
-  if(!r.success){document.getElementById('info').textContent='认证失败';return;}
-  let u=r.user;
-  document.getElementById('info').innerHTML='用户名: <b>'+u.username+'</b> | 到期: '+(u.expire_time?u.expire_time.slice(0,10):'永久');
-  let loc=location.origin;
-  document.getElementById('sub-url').value=loc+'/subscribe/'+u.auth_id;
-  let links=u.configs&&u.configs.length?
-    u.configs.map(c=>'节点: '+c.node+'\nSS: '+c.ss+'\nVMess: '+c.vmess+'\nTrojan: '+c.trojan+'\nVLESS: '+c.vless).join('\n\n'):
-    '暂无可用节点，请联系管理员添加节点';
-  document.getElementById('links').textContent=links;
-}
-load();
-</script></body></html>
-HTMLEOF
-
-    echo -e "  ${GREEN}Web 前端已安装${NC}"
+    echo -e "  ${GREEN}Web 前端已安装 (admin.html / user.html / index.html / qrcode.min.js)${NC}"
 }
 
 install_singbox_service() {
