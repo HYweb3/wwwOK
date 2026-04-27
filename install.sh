@@ -1128,21 +1128,17 @@ do_change_password() {
         print_status FAIL "密码长度至少6位"; return
     fi
 
-    # 用环境变量传密码，彻底避免所有 bash 引号和权限问题
-    PASSWORD="$newpass" $PYTHON_CMD -c "
-import sqlite3, os, hashlib
-try:
-    p = os.environ.get('PASSWORD', '')
-    h = hashlib.sha256(p.encode()).hexdigest()
-    conn = sqlite3.connect('/opt/wwwOK/db/users.db')
-    c = conn.cursor()
-    c.execute('UPDATE admins SET password=? WHERE username=\"admin\"', (h,))
-    conn.commit()
-    print('密码已更新')
-except Exception as e:
-    print('错误: ' + str(e))
-"
-    print_status OK "管理密码已修改为: $newpass"
+    # 用 API 修改密码，避免 bash 引号和 set -e 冲突
+    RESPONSE=$(curl -s -X POST "http://127.0.0.1:${API_PORT}/api/admin/change-password" \
+        -H "Authorization: Basic YWRtaW46dmlwQDg4ODg5OTk=" \
+        -H "Content-Type: application/json" \
+        -d "{\"new_password\":\"$newpass\"}" 2>/dev/null)
+
+    if echo "$RESPONSE" | grep -q '"code":0'; then
+        print_status OK "管理密码已修改为: $newpass"
+    else
+        print_status FAIL "修改失败: $RESPONSE"
+    fi
 }
 
 show_menu() {
