@@ -1167,10 +1167,10 @@ main() {
     esac
 
     while true; do
-        clear > /dev/null 2>&1
+        clear || true
         show_menu
         read -p "  请输入选项 [0-5]: " choice
-        clear > /dev/null 2>&1
+        clear || true
         case $choice in
             1) do_install; pause ;;
             2) do_view; pause ;;
