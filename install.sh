@@ -1128,23 +1128,20 @@ do_change_password() {
         print_status FAIL "密码长度至少6位"; return
     fi
 
-    # 用临时文件避免所有引号问题
-    local tmpfile=$(mktemp)
-    cat > "$tmpfile" << 'PYEOF'
-import sqlite3, sys, hashlib
+    # 用环境变量传密码，彻底避免所有 bash 引号和权限问题
+    PASSWORD="$newpass" $PYTHON_CMD -c "
+import sqlite3, os, hashlib
 try:
-    p = sys.argv[1]
+    p = os.environ.get('PASSWORD', '')
     h = hashlib.sha256(p.encode()).hexdigest()
     conn = sqlite3.connect('/opt/wwwOK/db/users.db')
     c = conn.cursor()
-    c.execute("UPDATE admins SET password=? WHERE username='admin'", (h,))
+    c.execute('UPDATE admins SET password=? WHERE username=\"admin\"', (h,))
     conn.commit()
-    print("密码已更新")
+    print('密码已更新')
 except Exception as e:
-    print("错误: " + str(e))
-PYEOF
-    $PYTHON_CMD "$tmpfile" "$newpass"
-    rm -f "$tmpfile"
+    print('错误: ' + str(e))
+"
     print_status OK "管理密码已修改为: $newpass"
 }
 
