@@ -991,7 +991,7 @@
     <!-- QR Modal -->
     <div class="qr-modal" id="qrModal">
         <div class="qr-container">
-            <canvas id="qrCanvas" width="200" height="200"></canvas>
+            <div id="qrCanvas"></div>
             <p id="qrProtocol"></p>
             <button class="qr-close" onclick="closeQrModal()">关闭</button>
         </div>
@@ -1345,11 +1345,15 @@
             
             const canvas = document.getElementById('qrCanvas');
             canvas.innerHTML = '';
-            new QRCode(canvas, {
-                text: url,
-                width: 200,
-                height: 200
-            });
+            try {
+                new QRCode(canvas, {
+                    text: url,
+                    width: 200,
+                    height: 200
+                });
+            } catch(e) {
+                console.error('QRCode error:', e);
+            }
         }
         
         function closeQrModal() {
