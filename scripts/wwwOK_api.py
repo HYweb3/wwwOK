@@ -301,8 +301,10 @@ class APIHandler(BaseHTTPRequestHandler):
                     if dt_parse(user['expire_time']) < datetime.now(): self.send_error(403); return
                 except: pass
             nodes = get_nodes(); configs = generate_links(user['id'], user['uuid'], user['password'], nodes)
-            content = "".join(f"#{cfg['node']}\n{cfg['ss']}\n{cfg['vmess']}\n{cfg['trojan']}\n{cfg['vless']}\n\n" for cfg in configs)
-            self.send_text(content); return
+            raw = "".join(f"#{cfg['node']}\n{cfg['ss']}\n{cfg['vmess']}\n{cfg['trojan']}\n{cfg['vless']}\n\n" for cfg in configs)
+            import base64
+            encoded = base64.b64encode(raw.encode('utf-8')).decode('ascii')
+            self.send_text(encoded); return
         if path == '/api/users': self.send_json({'users': list_users()}); return
         if path == '/api/nodes': self.send_json({'nodes': get_nodes()}); return
         if path.startswith('/api/user/') and path != '/api/user/create':
