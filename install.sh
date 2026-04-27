@@ -311,7 +311,7 @@ do_install() {
     # 等待 API 服务就绪
     echo -e "\n${CYAN}>>> 等待 API 服务就绪...${NC}"
     for i in $(seq 1 10); do
-        if curl -s --max-time 2 "http://127.0.0.1:${API_PORT}/health" 2>/dev/null | grep -q '"status":"ok"'; then
+        if curl -s --max-time 2 "http://127.0.0.1:${API_PORT}/health" 2>/dev/null | grep -q 'status.*ok'; then
             echo -e "  ${GREEN}API 服务已就绪${NC}"
             break
         fi
@@ -324,7 +324,7 @@ do_install() {
         -H "Authorization: Basic YWRtaW46dmlwQDg4ODg5OTk=" \
         -H "Content-Type: application/json" 2>/dev/null)
 
-    if echo "$INIT_RESP" | grep -q '"success":true'; then
+    if echo "$INIT_RESP" | grep -q '"success" *: *true'; then
         USER_PASS=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('user',{}).get('password','N/A'))" 2>/dev/null)
         AUTH_ID=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('user',{}).get('auth_id','N/A'))" 2>/dev/null)
         SERVER_IP=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('server_ip','<IP>'))" 2>/dev/null)
@@ -520,7 +520,7 @@ do_change_password() {
         -H "Content-Type: application/json" \
         -d "{\"new_password\":\"$newpass\"}" 2>/dev/null)
 
-    if echo "$RESPONSE" | grep -q '"code":0'; then
+    if echo "$RESPONSE" | grep -q 'success.*true\|"code".*0'; then
         print_status OK "管理密码已修改为: $newpass"
     else
         print_status FAIL "修改失败: $RESPONSE"
