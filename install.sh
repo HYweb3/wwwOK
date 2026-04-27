@@ -21,9 +21,33 @@ CONFIG_DIR="$INSTALL_BASE/config"
 WEB_DIR="$INSTALL_BASE/web"
 BIN_DIR="$INSTALL_BASE/bin"
 LOG_DIR="/var/log/wwwOK"
-API_PORT=8888
+CONFIG_DIR_ACTUAL="/opt/wwwOK/config"
 SS_PORT=9000; VMESS_PORT=9001; TROJAN_PORT=9002; VLESS_PORT=9003
 SB_VERSION="1.13.11"
+
+# 从配置文件读取 API 端口（安装时写死，之后从配置文件读）
+read_api_port() {
+    local port_file="$CONFIG_DIR_ACTUAL/port.txt"
+    if [ -f "$port_file" ]; then
+        cat "$port_file"
+    else
+        echo "8888"
+    fi
+}
+
+find_available_port() {
+    local start=$1; local max_attempts=${2:-10}
+    local port=$start
+    for i in $(seq 0 $((max_attempts - 1))); do
+        local p=$((start + i))
+        if ! ss -tuln 2>/dev/null | grep -q ":${p} " && \
+           ! netstat -tuln 2>/dev/null | grep -q ":${p} "; then
+            echo "$p"; return 0
+        fi
+        echo -e "  ${YELLOW}端口 ${p} 已被占用，尝试下一个...${NC}" >&2
+    done
+    echo ""; return 1
+}
 
 detect_os() {
     if [ -f /etc/os-release ]; then . /etc/os-release; fi
@@ -195,16 +219,21 @@ SVCEOF
 }
 
 install_api_service() {
-    echo -e "\n${CYAN}>>> 配置 wwwOK API 服务...${NC}"
+    local API_PORT=$1
+    echo -e "\n${CYAN}>>> 配置 wwwOK API 服务 (端口 ${API_PORT})...${NC}"
 
-    cat > /etc/systemd/system/wwwok-api.service << 'SVCEOF'
+    # 保存端口配置
+    mkdir -p "$CONFIG_DIR_ACTUAL"
+    echo "$API_PORT" > "$CONFIG_DIR_ACTUAL/port.txt"
+
+    cat > /etc/systemd/system/wwwok-api.service << SVCEOF
 [Unit]
 Description=wwwOK API service
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /opt/wwwOK/scripts/wwwOK_api.py
+ExecStart=/usr/bin/python3 /opt/wwwOK/scripts/wwwOK_api.py $API_PORT
 Restart=always
 RestartSec=5
 StandardOutput=journal
@@ -215,23 +244,20 @@ WorkingDirectory=/opt/wwwOK/scripts
 WantedBy=multi-user.target
 SVCEOF
 
-    $PYTHON_CMD ${SCRIPTS_DIR}/wwwOK_api.py &
-    sleep 2
-    kill %1 2>/dev/null || true
-
     systemctl daemon-reload
     systemctl enable wwwok-api
     systemctl restart wwwok-api
     sleep 1
 
     if systemctl is-active --quiet wwwok-api; then
-        echo -e "  ${GREEN}wwwOK API 服务启动成功${NC}"
+        echo -e "  ${GREEN}wwwOK API 服务启动成功 (端口 ${API_PORT})${NC}"
     else
         echo -e "  ${RED}wwwOK API 启动失败，请检查 journalctl -u wwwok-api${NC}"
     fi
 }
 
 setup_firewall() {
+    local API_PORT=${1:-8888}
     echo -e "\n${CYAN}>>> 配置防火墙...${NC}"
     for port in $API_PORT $SS_PORT $VMESS_PORT $TROJAN_PORT $VLESS_PORT; do
         if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
@@ -269,8 +295,18 @@ do_install() {
     echo -e "  ${GREEN}wwwok 命令已创建: /usr/local/bin/wwwok${NC}"
 
     install_singbox_service
-    install_api_service
-    setup_firewall
+
+    # 查找可用端口 8888~8897
+    echo -e "\n${CYAN}>>> 查找可用 API 端口...${NC}"
+    API_PORT=$(find_available_port 8888 10)
+    if [ -z "$API_PORT" ]; then
+        echo -e "  ${RED}无法找到可用端口 (8888-8897)${NC}"
+        exit 1
+    fi
+    echo -e "  ${GREEN}使用端口: ${API_PORT}${NC}"
+
+    install_api_service $API_PORT
+    setup_firewall $API_PORT
 
     # 等待 API 服务就绪
     echo -e "\n${CYAN}>>> 等待 API 服务就绪...${NC}"
@@ -327,6 +363,7 @@ do_view() {
         return
     fi
 
+    API_PORT=$(read_api_port)
     SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
     [ -z "$SERVER_IP" ] && SERVER_IP="<服务器IP>"
 
@@ -474,6 +511,8 @@ do_change_password() {
     if [ -z "$newpass" ] || [ ${#newpass} -lt 6 ]; then
         print_status FAIL "密码长度至少6位"; return
     fi
+
+    API_PORT=$(read_api_port)
 
     # 用 API 修改密码，避免 bash 引号和 set -e 冲突
     RESPONSE=$(curl -s        -X POST "http://127.0.0.1:${API_PORT}/api/admin/password" \

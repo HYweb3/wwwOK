@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """wwwOK API 服务 (Python 3.6兼容版)
 基于 GitHub HYweb3/wwwOK main 分支 v2.0
+用法: python3 wwwOK_api.py [port]
 """
-import sqlite3, uuid, string, secrets, hashlib, json, time, os, subprocess
+import sqlite3, uuid, string, secrets, hashlib, json, time, os, subprocess, sys
 from datetime import datetime, timedelta
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, quote
 import base64
+
+# 支持命令行传入端口
+PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
 
 try:
     from dateutil.parser import parse as dt_parse
