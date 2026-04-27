@@ -74,8 +74,8 @@ install_dependencies() {
 }
 
 download_singbox() {
-    log_info "下载 sing-box..."
-    SINGBOX_VER=$(curl -sL "https://api.github.com/repos/SagerNet/sing-box/releases/latest" 2>/dev/null | grep -o '"tag_name": "v[^"]*"' | head -1 | cut -d'"' -f4 || echo "v1.9.0")
+    log_info "下载 sing-box v1.13.11..."
+    SINGBOX_VER="v1.13.11"
     mkdir -p ${WORK_DIR}/bin
     cd /tmp
     DOWNLOAD_URL="https://github.com/SagerNet/sing-box/releases/download/${SINGBOX_VER}/sing-box-${SINGBOX_VER#v}-linux-${ARCH}.tar.gz"
@@ -85,7 +85,7 @@ download_singbox() {
         mv sing-box-${SINGBOX_VER#v}-linux-${ARCH}/sing-box ${WORK_DIR}/bin/
         chmod +x ${WORK_DIR}/bin/sing-box
         rm -rf sing-box.tar.gz sing-box-${SINGBOX_VER#v}-linux-${ARCH}
-        log_success "sing-box 下载完成 (版本: ${SINGBOX_VER})"
+        log_success "sing-box v1.13.11 下载完成"
     else
         log_error "sing-box 下载失败，请检查网络连接"
     fi
