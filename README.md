@@ -15,13 +15,13 @@
 ## 快速安装
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/wwwOK/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/HYweb3/wwwOK/main/install.sh | bash
 ```
 
 或者：
 
 ```bash
-wget -qO- https://raw.githubusercontent.com/YOUR_USERNAME/wwwOK/main/install.sh | bash
+wget -qO- https://raw.githubusercontent.com/HYweb3/wwwOK/main/install.sh | bash
 ```
 
 安装完成后访问：`http://你的服务器IP:8080`
