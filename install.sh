@@ -103,6 +103,7 @@ download_singbox() {
         echo -e "  ${GREEN}下载完成，解压安装...${NC}"
         tar -xzf "$SB_FILE"
         if [ -f "sing-box-${SB_VERSION}-linux-${SB_ARCH}/sing-box" ]; then
+            systemctl stop sing-box 2>/dev/null || true
             cp "sing-box-${SB_VERSION}-linux-${SB_ARCH}/sing-box" "$BIN_DIR/sing-box"
             chmod +x "$BIN_DIR/sing-box"
             echo -e "  ${GREEN}已安装到 ${BIN_DIR}/sing-box${NC}"
@@ -381,18 +382,17 @@ do_install() {
     download_singbox
     install_python_scripts
     install_web
-    install_singbox_service
-    install_api_service
-    setup_firewall
 
-    # 下载 install.sh 到 /opt/wwwOK/
+    # 下载 install.sh 到 /opt/wwwOK/ 并创建 wwwok 命令
     curl -fsSL "https://raw.githubusercontent.com/HYweb3/wwwOK/main/install.sh" \
         -o /opt/wwwOK/install.sh
     chmod +x /opt/wwwOK/install.sh
-
-    # 创建 wwwok 命令行工具
     ln -sf /opt/wwwOK/install.sh /usr/local/bin/wwwok
     echo -e "  ${GREEN}wwwok 命令已创建: /usr/local/bin/wwwok${NC}"
+
+    install_singbox_service
+    install_api_service
+    setup_firewall
 
     SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
     [ -z "$SERVER_IP" ] && SERVER_IP="<服务器IP>"
