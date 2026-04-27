@@ -328,6 +328,7 @@
         <div class="qr-container">
             <div id="qrCanvas"></div>
             <p id="qrProtocol"></p>
+            <div id="qrFallback" style="display:none;max-width:300px;word-break:break-all;font-size:12px;"></div>
             <button class="qr-close" onclick="closeQrModal()">关闭</button>
         </div>
     </div>
@@ -477,13 +478,32 @@
 
         function showQR(url, protocol) {
             document.getElementById('qrModal').classList.add('active');
-            document.getElementById('qrProtocol').textContent = protocol + ' 二维码';
+            
             const canvas = document.getElementById('qrCanvas');
+            const qrProtocol = document.getElementById('qrProtocol');
+            const qrFallback = document.getElementById('qrFallback');
             canvas.innerHTML = '';
-            try {
-                new QRCode(canvas, { text: url, width: 200, height: 200 });
-            } catch(e) {
-                console.error('QRCode error:', e);
+            if (qrFallback) qrFallback.style.display = 'none';
+
+            // 超长链接（VMess/Trojan等>1000字符）不生成QR码，直接显示文字
+            if (url.length > 1000) {
+                qrProtocol.textContent = protocol + ' 链接（过长，请复制使用）';
+                if (qrFallback) {
+                    qrFallback.innerHTML = `<a href="${url}" target="_blank">${url}</a>`;
+                    qrFallback.style.display = 'block';
+                }
+            } else {
+                qrProtocol.textContent = protocol + ' 二维码';
+                try {
+                    new QRCode(canvas, { text: url, width: 200, height: 200 });
+                } catch(e) {
+                    console.error('QRCode error:', e);
+                    qrProtocol.textContent = protocol + ' 链接';
+                    if (qrFallback) {
+                        qrFallback.innerHTML = `<a href="${url}" target="_blank">${url}</a>`;
+                        qrFallback.style.display = 'block';
+                    }
+                }
             }
         }
 
