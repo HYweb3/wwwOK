@@ -979,8 +979,8 @@ do_view() {
     SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
     [ -z "$SERVER_IP" ] && SERVER_IP="<服务器IP>"
 
-    USER_COUNT=$($PYTHON_CMD -c "import sqlite3; c=sqlite3.connect('/opt/wwwOK/db/users.db').cursor(); c.execute('SELECT COUNT(*) FROM users'); print(c.fetchone()[0])" 2>/dev/null || echo "?")
-    NODE_INFO=$($PYTHON_CMD -c "import sqlite3; c=sqlite3.connect('/opt/wwwOK/db/users.db').cursor(); c.execute('SELECT name,host,port FROM nodes LIMIT 1'); r=c.fetchone(); print(r[0]+' ('+r[1]+':'+str(r[2])+')' if r else '未配置')" 2>/dev/null || echo "未配置")
+    USER_COUNT=$($PYTHON_CMD -c 'import sqlite3; c=sqlite3.connect("/opt/wwwOK/db/users.db").cursor(); c.execute("SELECT COUNT(*) FROM users"); print(c.fetchone()[0])' 2>/dev/null || echo '?')
+    NODE_INFO=$($PYTHON_CMD -c 'import sqlite3; c=sqlite3.connect("/opt/wwwOK/db/users.db").cursor(); c.execute("SELECT name,host,port FROM nodes LIMIT 1"); r=c.fetchone(); print(r[0]+" ("+r[1]+":"+str(r[2])+")" if r else "未配置")' 2>/dev/null || echo '未配置')
     SB_STATUS=$(systemctl is-active sing-box 2>/dev/null)
     API_STATUS=$(systemctl is-active wwwok-api 2>/dev/null)
 
