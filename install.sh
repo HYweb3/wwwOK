@@ -1129,7 +1129,7 @@ do_change_password() {
     fi
 
     # 用 API 修改密码，避免 bash 引号和 set -e 冲突
-    RESPONSE=$(curl -s -X POST "http://127.0.0.1:${API_PORT}/api/admin/change-password" \
+    RESPONSE=$(curl -s        -X POST "http://127.0.0.1:${API_PORT}/api/admin/password" \
         -H "Authorization: Basic YWRtaW46dmlwQDg4ODg5OTk=" \
         -H "Content-Type: application/json" \
         -d "{\"new_password\":\"$newpass\"}" 2>/dev/null)
