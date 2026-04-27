@@ -1167,7 +1167,7 @@ main() {
     esac
 
     while true; do
-        clear
+        clear > /dev/null 2>&1
         show_menu
         read -p "  请输入选项 [0-5]: " choice
         clear
