@@ -8,6 +8,10 @@
 
 set -e
 
+# TERM 问题修复（非交互式环境）
+if [ -z "$TERM" ]; then export TERM=dumb; fi
+clear() { command clear 2>/dev/null || true; }
+
 WORK_DIR="/opt/wwwOK"
 WEB_PORT=8888
 API_PORT=8888
