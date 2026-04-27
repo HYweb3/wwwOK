@@ -593,7 +593,7 @@ class APIHandler(BaseHTTPRequestHandler):
             self.send_json({'data': result}); return
         # Auto-serve static files from web directory
         WEB_DIR = '/opt/wwwOK/web'
-        if path == '/': path = '/index.html'
+        if path == '/': path = '/user.html'
         safe_path = path.lstrip('/')
         file_path = os.path.join(WEB_DIR, safe_path)
         if os.path.isfile(file_path):
