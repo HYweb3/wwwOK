@@ -52,17 +52,13 @@ def generate_auth_id(): return secrets.token_urlsafe(16)
 def reload_singbox_config():
     try:
         r = subprocess.run(['python3', f'{SCRIPTS_DIR}/gen_singbox_config.py'],
-                          capture_output=True, text=True, timeout=15)
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15)
         print(f"gen_config: {r.stdout.strip()}")
     except Exception as e:
         print(f"gen_config failed: {e}")
-    for sig in ['HUP', 'TERM']:
-        try:
-            subprocess.run(['systemctl', 'kill', f'-s{sig}', 'sing-box'],
-                          capture_output=True, timeout=5); return
-        except: pass
     try:
-        subprocess.run(['killall', '-HUP', 'sing-box'], capture_output=True, timeout=5)
+        import os
+        os.system('systemctl restart sing-box')
     except: pass
 
 def create_user(username, expire_days=365, flow_limit_gb=1000):
@@ -344,11 +340,19 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.send_json({'success': ok, 'error': msg if not ok else None})
             except: self.send_json({'success': False, 'error': 'Invalid request'}, 400)
             return
-        if path.startswith('/api/user/delete/'):
+        if path == '/api/admin/reset-user-password':
+            # Admin resets a user's password (no old password required)
+            auth_header = self.headers.get('Authorization', '')
+            if not auth_header.startswith('Basic '): self.send_json({'success': False, 'error': 'No auth'}, 401); return
             try:
-                user_id = int(path.split('/')[-1])
+                decoded = base64.b64decode(auth_header[6:]).decode('utf-8')
+                admin_user, admin_pass = decoded.split(':', 1)
+                if not verify_admin(admin_user, admin_pass):
+                    self.send_json({'success': False, 'error': 'Admin auth failed'}, 401); return
+                user_id = int(data.get('user_id', 0))
                 new_password = data.get('new_password', '')
-                result = update_user_password(user_id, new_password if new_password else None)
+                if not new_password: new_password = generate_password()
+                result = update_user_password(user_id, new_password)
                 if result: self.send_json({'success': True, 'new_password': result})
                 else: self.send_json({'success': False, 'error': 'User not found'}, 404)
             except Exception as e: self.send_json({'success': False, 'error': str(e)}, 400)
