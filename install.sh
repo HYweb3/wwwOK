@@ -272,7 +272,35 @@ do_install() {
     install_api_service
     setup_firewall
 
-    SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
+    # 等待 API 服务就绪
+    echo -e "\n${CYAN}>>> 等待 API 服务就绪...${NC}"
+    for i in $(seq 1 10); do
+        if curl -s --max-time 2 "http://127.0.0.1:${API_PORT}/health" 2>/dev/null | grep -q '"status":"ok"'; then
+            echo -e "  ${GREEN}API 服务已就绪${NC}"
+            break
+        fi
+        sleep 1
+    done
+
+    # 创建默认节点和默认用户
+    echo -e "\n${CYAN}>>> 创建默认节点和用户...${NC}"
+    INIT_RESP=$(curl -s --max-time 15 -X POST "http://127.0.0.1:${API_PORT}/api/init-defaults" \
+        -H "Authorization: Basic YWRtaW46dmlwQDg4ODg5OTk=" \
+        -H "Content-Type: application/json" 2>/dev/null)
+
+    if echo "$INIT_RESP" | grep -q '"success":true'; then
+        USER_PASS=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('user',{}).get('password','N/A'))" 2>/dev/null)
+        AUTH_ID=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('user',{}).get('auth_id','N/A'))" 2>/dev/null)
+        SERVER_IP=$(echo "$INIT_RESP" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('server_ip','<IP>'))" 2>/dev/null)
+        echo -e "  ${GREEN}默认节点 wwwok 已创建${NC}"
+        echo -e "  ${GREEN}默认用户 wwwok 已创建${NC}"
+    else
+        SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
+        [ -z "$SERVER_IP" ] && SERVER_IP="<服务器IP>"
+        echo -e "  ${YELLOW}默认用户创建失败，请手动检查: $INIT_RESP${NC}"
+    fi
+
+    [ -z "$SERVER_IP" ] && SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
     [ -z "$SERVER_IP" ] && SERVER_IP="<服务器IP>"
 
     print_divider
@@ -281,8 +309,9 @@ do_install() {
     echo -e "  ${WHITE}管理面板: ${CYAN}http://${SERVER_IP}:${API_PORT}/admin.html${NC}"
     echo -e "  ${WHITE}用户订阅: ${CYAN}http://${SERVER_IP}:${API_PORT}/user.html${NC}"
     echo -e "  ${WHITE}代理端口:  ${CYAN}SS=${SS_PORT} | VMess=${VMESS_PORT} | Trojan=${TROJAN_PORT} | VLESS=${VLESS_PORT}${NC}"
-    echo -e "  ${WHITE}管理员:    ${CYAN}admin${NC}"
-    echo -e "  ${WHITE}管理密码:  ${CYAN}vip@8888999${NC}"
+    echo ""
+    echo -e "  ${WHITE}默认用户:  ${CYAN}wwwok / @user8888999${NC}"
+    echo -e "  ${WHITE}管理员:    ${CYAN}admin / vip@8888999${NC}"
     echo ""
     echo -e "  ${YELLOW}请尽快修改管理密码！${NC}"
     echo ""

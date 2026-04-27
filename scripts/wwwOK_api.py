@@ -423,6 +423,50 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.send_json({'success': False, 'error': 'No auth header'}, 401)
             return
 
+        if path == '/api/init-defaults':
+            try:
+                import subprocess as _sub
+                ip = _sub.check_output(['curl', '-s', 'ifconfig.me'],
+                                      timeout=5).decode().strip()
+                if not ip:
+                    ip = _sub.check_output(['curl', '-s', 'icanhazip.com'],
+                                          timeout=5).decode().strip()
+                if not ip:
+                    self.send_json({'success': False, 'error': 'cannot detect server IP'}, 400)
+                    return
+
+                # Create default node if not exists
+                existing_nodes = get_nodes()
+                node_id = None
+                if not existing_nodes:
+                    node_id = add_node('wwwok', ip, 9000)
+
+                # Create default user if not exists
+                existing_users = list_users()
+                user_result = None
+                if not existing_users:
+                    conn = get_db_conn()
+                    c = conn.cursor()
+                    now = datetime.now().isoformat()
+                    expire = (datetime.now() + timedelta(days=3650)).isoformat()
+                    pwd = '@user8888999'
+                    _uuid = str(uuid.uuid4())
+                    _auth = secrets.token_urlsafe(16)
+                    c.execute("INSERT INTO users (username, password, uuid, expire_time, flow_limit, created_time, auth_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                              ('wwwok', pwd, _uuid, expire, 10*1024*1024*1024*1024, now, _auth))
+                    conn.commit()
+                    uid = c.lastrowid
+                    conn.close()
+                    reload_singbox_config()
+                    nodes = get_nodes()
+                    user_result = {'id': uid, 'username': 'wwwok', 'password': pwd,
+                                   'uuid': _uuid, 'auth_id': _auth,
+                                   'configs': generate_links(uid, _uuid, pwd, nodes)}
+                self.send_json({'success': True, 'node_id': node_id, 'user': user_result, 'server_ip': ip})
+            except Exception as e:
+                self.send_json({'success': False, 'error': str(e)}, 400)
+            return
+
         if path == '/api/user/create':
             try:
                 result = create_user(data.get('username', ''), int(data.get('expire_days', 365)), int(data.get('flow_limit_gb', 1000)))
