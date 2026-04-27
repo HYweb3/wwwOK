@@ -401,13 +401,25 @@ def add_node(name, host, port=8080):
     conn.close()
     return node_id
 
-def get_nodes():
+def get_nodes(include_disabled=False):
     conn = sqlite3.connect(DB_PATH)
     c = conn.cursor()
-    c.execute("SELECT id, name, host, port, enable FROM nodes WHERE enable=1")
+    if include_disabled:
+        c.execute("SELECT id, name, host, port, enable FROM nodes ORDER BY id")
+    else:
+        c.execute("SELECT id, name, host, port, enable FROM nodes WHERE enable=1 ORDER BY id")
     nodes = c.fetchall()
     conn.close()
     return [{'id': n[0], 'name': n[1], 'host': n[2], 'port': n[3], 'enable': n[4]} for n in nodes]
+
+def delete_node(node_id):
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("DELETE FROM nodes WHERE id=?", (node_id,))
+    conn.commit()
+    affected = c.rowcount
+    conn.close()
+    return affected > 0
 
 def verify_admin(username, password):
     """验证管理员登录"""
@@ -615,6 +627,17 @@ class APIHandler(BaseHTTPRequestHandler):
             try:
                 node_id = add_node(data.get('name', ''), data.get('host', ''), int(data.get('port', 8080)))
                 self.send_json({'success': True, 'node_id': node_id})
+            except Exception as e:
+                self.send_json({'success': False, 'error': str(e)}, 400)
+            return
+        
+        if path.startswith('/api/node/delete/'):
+            try:
+                node_id = int(path.split('/')[-1])
+                if delete_node(node_id):
+                    self.send_json({'success': True})
+                else:
+                    self.send_json({'success': False, 'error': 'Node not found'}, 404)
             except Exception as e:
                 self.send_json({'success': False, 'error': str(e)}, 400)
             return

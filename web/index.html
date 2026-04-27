@@ -1131,18 +1131,10 @@
                     document.getElementById('detailUsername').textContent = data.user.username;
                     document.getElementById('detailPassword').textContent = data.user.password;
                     document.getElementById('subUrl').value = `${API}/subscribe/${data.user.auth_id}`;
-                    
-                    // Render protocol links
+
+                    // Render ALL nodes' configs
                     const linksDiv = document.getElementById('protocolLinks');
-                    linksDiv.innerHTML = '';
-                    
-                    if (data.user.configs && data.user.configs.length > 0) {
-                        const cfg = data.user.configs[0];
-                        addProtocolLink(linksDiv, 'SS', cfg.ss);
-                        addProtocolLink(linksDiv, 'Vmess', cfg.vmess);
-                        addProtocolLink(linksDiv, 'Trojan', cfg.trojan);
-                        addProtocolLink(linksDiv, 'VLESS', cfg.vless);
-                    }
+                    renderUserConfigs(linksDiv, data.user.configs);
                     
                     showToast('用户创建成功', 'success');
                     loadUsers();
@@ -1155,15 +1147,36 @@
         }
         
         function addProtocolLink(container, protocol, url) {
+            if (!url) return;
             const div = document.createElement('div');
             div.className = `link-item ${protocol.toLowerCase()}`;
             div.innerHTML = `
                 <span class="protocol">${protocol}</span>
                 <input type="text" class="url-input" value="${url}" readonly>
-                <button class="copy-btn" onclick="copyToClipboard('${url}')"><i class="fas fa-copy"></i> 复制</button>
-                <button class="qr-btn" onclick="showQR('${url}', '${protocol}')"><i class="fas fa-qrcode"></i></button>
+                <button class="copy-btn" onclick="copyToClipboard('${url.replace(/'/g, "\\'")}')"><i class="fas fa-copy"></i> 复制</button>
+                <button class="qr-btn" onclick="showQR('${url.replace(/'/g, "\\'")}', '${protocol}')"><i class="fas fa-qrcode"></i></button>
             `;
             container.appendChild(div);
+        }
+
+        function renderUserConfigs(container, configs) {
+            container.innerHTML = '';
+            if (!configs || configs.length === 0) {
+                container.innerHTML = '<p style="color:var(--text-dim);text-align:center;padding:20px;">暂无节点配置（请先添加节点）</p>';
+                return;
+            }
+            configs.forEach(cfg => {
+                // Node header
+                const header = document.createElement('div');
+                header.style.cssText = 'margin-top:20px;margin-bottom:10px;padding:8px 12px;background:rgba(99,102,241,0.15);border-radius:8px;font-size:13px;font-weight:600;color:var(--primary);';
+                header.innerHTML = `<i class="fas fa-server"></i> 节点: ${cfg.node} (${cfg.host}:${cfg.port})`;
+                container.appendChild(header);
+                // Protocols
+                addProtocolLink(container, 'SS', cfg.ss);
+                addProtocolLink(container, 'Vmess', cfg.vmess);
+                addProtocolLink(container, 'Trojan', cfg.trojan);
+                addProtocolLink(container, 'VLESS', cfg.vless);
+            });
         }
         
         // Create node
@@ -1208,17 +1221,9 @@
                 document.getElementById('detailUsername').textContent = user.username;
                 document.getElementById('detailPassword').textContent = user.password;
                 document.getElementById('subUrl').value = `${API}/subscribe/${user.auth_id}`;
-                
+
                 const linksDiv = document.getElementById('protocolLinks');
-                linksDiv.innerHTML = '';
-                
-                if (user.configs && user.configs.length > 0) {
-                    const cfg = user.configs[0];
-                    addProtocolLink(linksDiv, 'SS', cfg.ss);
-                    addProtocolLink(linksDiv, 'Vmess', cfg.vmess);
-                    addProtocolLink(linksDiv, 'Trojan', cfg.trojan);
-                    addProtocolLink(linksDiv, 'VLESS', cfg.vless);
-                }
+                renderUserConfigs(linksDiv, user.configs);
             } catch (e) {
                 showToast('获取用户信息失败', 'error');
             }
@@ -1246,9 +1251,18 @@
         // Delete node
         async function deleteNode(nodeId) {
             if (!confirm('确定要删除此节点吗？')) return;
-            // TODO: Implement delete node API
-            showToast('节点已删除', 'success');
-            loadNodes();
+            try {
+                const res = await fetch(`${API}/api/node/delete/${nodeId}`, {method: 'POST'});
+                const data = await res.json();
+                if (data.success) {
+                    showToast('节点已删除', 'success');
+                    loadNodes();
+                } else {
+                    showToast(data.error || '删除失败', 'error');
+                }
+            } catch (e) {
+                showToast('删除失败', 'error');
+            }
         }
         
         // QR Code
