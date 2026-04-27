@@ -107,6 +107,9 @@ download_web_files() {
     curl -sL "${WEB_URL}/user.html" -o ${WORK_DIR}/web/user.html || {
         log_warn "下载 user.html 失败（用户面板不可用）"
     }
+    curl -sL "${WEB_URL}/qrcode.min.js" -o ${WORK_DIR}/web/qrcode.min.js || {
+        log_warn "下载 qrcode.min.js 失败（二维码功能不可用）"
+    }
     log_success "Web 前端文件下载完成"
 }
 

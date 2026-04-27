@@ -1003,6 +1003,7 @@
         <span id="toastMsg"></span>
     </div>
     
+    <script src="/qrcode.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script>
         // API Base URL
@@ -1357,9 +1358,21 @@
         
         // Copy functions
         function copyToClipboard(text) {
-            navigator.clipboard.writeText(text).then(() => {
-                showToast('已复制到剪贴板', 'success');
-            });
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast('已复制到剪贴板', 'success');
+                });
+            } else {
+                // Fallback for HTTP (non-secure context)
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                try { document.execCommand('copy'); showToast('已复制到剪贴板', 'success'); } catch (e) { showToast('复制失败', 'error'); }
+                document.body.removeChild(textarea);
+            }
         }
         
         function copySubUrl() {
