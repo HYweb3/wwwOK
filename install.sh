@@ -187,13 +187,23 @@ c.execute('''CREATE TABLE IF NOT EXISTS nodes (
     created_time TEXT
 )''')
 
-# 添加默认管理员（如果不存在）
+# 添加默认节点（如果不存在），自动获取本机IP
+import subprocess
+server_ip = subprocess.check_output("curl -s ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}'", shell=True).decode().strip()
+if server_ip:
+    c.execute("SELECT * FROM nodes WHERE host=?", (server_ip,))
+    if not c.fetchone():
+        c.execute("INSERT INTO nodes (name, host, port, enable, created_time) VALUES (?, ?, ?, ?, ?)",
+                 (f"默认节点", server_ip, 8080, 1, datetime.now().isoformat()))
+        print(f"Default node added: {server_ip}")
+
+# 添加默认管理员（如果不存在），密码: vip@8888999
 c.execute("SELECT * FROM admins WHERE username='admin'")
 if not c.fetchone():
-    pwd_hash = hashlib.sha256("admin123".encode()).hexdigest()
+    pwd_hash = hashlib.sha256("vip@8888999".encode()).hexdigest()
     c.execute("INSERT INTO admins (username, password, created_time) VALUES (?, ?, ?)",
              ("admin", pwd_hash, datetime.now().isoformat()))
-    print("Default admin created")
+    print("Default admin created with password: vip@8888999")
 
 conn.commit()
 conn.close()
