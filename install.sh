@@ -158,6 +158,22 @@ if not c.fetchone():
              ("admin", pwd_hash, datetime.now().isoformat()))
     print("Default admin created: admin / vip@8888999")
 
+# 自动添加本服务器为默认节点
+import urllib.request
+try:
+    public_ip = urllib.request.urlopen('https://api.ipify.org', timeout=5).read().decode()
+except:
+    try:
+        public_ip = urllib.request.urlopen('https://icanhazip.com', timeout=5).read().decode().strip()
+    except:
+        public_ip = '127.0.0.1'
+
+c.execute("SELECT * FROM nodes WHERE host=?", (public_ip,))
+if not c.fetchone():
+    c.execute("INSERT INTO nodes (name, host, port, enable, created_time) VALUES (?, ?, ?, ?, ?)",
+             ("默认节点", public_ip, 8080, 1, datetime.now().isoformat()))
+    print(f"Default node added: {public_ip}")
+
 conn.commit()
 conn.close()
 print("Database initialized")
