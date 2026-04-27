@@ -1170,7 +1170,7 @@ main() {
         clear > /dev/null 2>&1
         show_menu
         read -p "  请输入选项 [0-5]: " choice
-        clear
+        clear > /dev/null 2>&1
         case $choice in
             1) do_install; pause ;;
             2) do_view; pause ;;
