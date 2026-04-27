@@ -667,6 +667,47 @@
     </style>
 </head>
 <body>
+    <!-- Login Modal -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal" style="max-width:400px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-lock"></i> 管理登录</h3>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>管理员账号</label>
+                    <input type="text" id="loginUsername" value="admin" placeholder="admin">
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input type="password" id="loginPassword" placeholder="输入密码">
+                </div>
+                <button class="btn btn-primary" style="width:100%" onclick="doLogin()">
+                    <i class="fas fa-sign-in-alt"></i> 登录
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Password Change Modal -->
+    <div class="modal-overlay" id="pwdModal">
+        <div class="modal" style="max-width:400px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-key"></i> 修改密码</h3>
+                <button class="modal-close" onclick="closeModal('pwdModal')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>新密码</label>
+                    <input type="password" id="newAdminPwd" placeholder="至少6位">
+                </div>
+                <button class="btn btn-primary" style="width:100%" onclick="changeAdminPwd()">
+                    <i class="fas fa-save"></i> 确认修改
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <!-- Header -->
         <header class="header">
@@ -794,17 +835,35 @@
                 </div>
             </div>
             <div class="panel-body">
-                <div class="form-group">
-                    <label>默认流量限制 (GB)</label>
-                    <input type="number" id="defaultFlow" value="100">
+                <div class="links-box" style="margin-bottom:20px;">
+                    <h4 style="margin-bottom:15px;color:var(--text-dim);">
+                        <i class="fas fa-user-shield"></i> 管理员设置
+                    </h4>
+                    <div class="form-group">
+                        <label>修改管理员密码</label>
+                        <div style="display:flex;gap:10px;">
+                            <input type="password" id="adminNewPwd" placeholder="新密码（至少6位）">
+                            <button class="btn btn-primary" onclick="changeAdminPwd()">
+                                <i class="fas fa-key"></i> 修改
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>默认到期天数</label>
-                    <input type="number" id="defaultExpire" value="30">
+                
+                <div class="links-box">
+                    <h4 style="margin-bottom:15px;color:var(--text-dim);">
+                        <i class="fas fa-users-cog"></i> 用户密码重置
+                    </h4>
+                    <div class="form-group">
+                        <label>选择用户</label>
+                        <select id="resetPwdUser" style="width:100%;padding:10px;border-radius:8px;background:var(--gray);border:1px solid rgba(255,255,255,0.1);color:var(--text);">
+                            <option value="">-- 选择用户 --</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-warning" onclick="resetUserPwd()">
+                        <i class="fas fa-redo"></i> 重置密码
+                    </button>
                 </div>
-                <button class="btn btn-primary" onclick="saveSettings()">
-                    <i class="fas fa-save"></i> 保存设置
-                </button>
             </div>
         </div>
     </div>
@@ -1260,8 +1319,109 @@
             showToast('设置已保存', 'success');
         }
         
+        // Auth
+        let isLoggedIn = false;
+        
+        function getAuthHeader() {
+            const u = document.getElementById('loginUsername').value;
+            const p = document.getElementById('loginPassword').value;
+            return 'Basic ' + btoa(u + ':' + p);
+        }
+        
+        async function doLogin() {
+            const u = document.getElementById('loginUsername').value;
+            const p = document.getElementById('loginPassword').value;
+            if (!u || !p) { showToast('请输入账号密码', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/api/login`, {
+                    headers: {'Authorization': 'Basic ' + btoa(u + ':' + p)}
+                });
+                const data = await res.json();
+                if (data.success) {
+                    isLoggedIn = true;
+                    document.getElementById('loginModal').classList.remove('active');
+                    showToast('登录成功', 'success');
+                    loadUsers();
+                } else {
+                    showToast(data.error || '登录失败', 'error');
+                }
+            } catch (e) {
+                showToast('登录失败', 'error');
+            }
+        }
+        
+        async function changeAdminPwd() {
+            const newPwd = document.getElementById('adminNewPwd').value || document.getElementById('newAdminPwd').value;
+            if (!newPwd || newPwd.length < 6) { showToast('密码至少6位', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/api/admin/password`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': getAuthHeader()
+                    },
+                    body: JSON.stringify({new_password: newPwd})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('密码修改成功', 'success');
+                    document.getElementById('adminNewPwd').value = '';
+                    document.getElementById('newAdminPwd').value = '';
+                    closeModal('pwdModal');
+                } else {
+                    showToast(data.error || '修改失败', 'error');
+                }
+            } catch (e) {
+                showToast('修改失败', 'error');
+            }
+        }
+        
+        async function resetUserPwd() {
+            const sel = document.getElementById('resetPwdUser');
+            const uid = sel.value;
+            if (!uid) { showToast('请选择用户', 'error'); return; }
+            try {
+                const res = await fetch(`${API}/api/user/password/${uid}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': getAuthHeader()
+                    },
+                    body: JSON.stringify({})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`新密码: ${data.new_password}`, 'success');
+                } else {
+                    showToast(data.error || '重置失败', 'error');
+                }
+            } catch (e) {
+                showToast('重置失败', 'error');
+            }
+        }
+        
+        // Populate user dropdown in settings
+        async function populateUserDropdown() {
+            try {
+                const res = await fetch(`${API}/api/users`);
+                const data = await res.json();
+                const sel = document.getElementById('resetPwdUser');
+                sel.innerHTML = '<option value="">-- 选择用户 --</option>';
+                (data.users || []).forEach(u => {
+                    sel.innerHTML += `<option value="${u.id}">${u.username} (ID:${u.id})</option>`;
+                });
+            } catch (e) {}
+        }
+        
         // Init
+        document.getElementById('loginModal').classList.add('active');
         loadUsers();
+        populateUserDropdown();
+        
+        // Enter key on login
+        document.getElementById('loginPassword').addEventListener('keyup', e => {
+            if (e.key === 'Enter') doLogin();
+        });
     </script>
 </body>
 </html>

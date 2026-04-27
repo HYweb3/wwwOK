@@ -308,10 +308,10 @@ def init_db():
         created_time TEXT
     )''')
     
-    # 创建默认管理员
+    # 创建默认管理员 (密码: vip@8888999)
     c.execute("SELECT * FROM admins WHERE username='admin'")
     if not c.fetchone():
-        hashed = hashlib.sha256("admin123".encode()).hexdigest()
+        hashed = hashlib.sha256("vip@8888999".encode()).hexdigest()
         c.execute("INSERT INTO admins (username, password, created_time) VALUES (?, ?, ?)",
                  ("admin", hashed, datetime.now().isoformat()))
     
@@ -409,6 +409,40 @@ def get_nodes():
     conn.close()
     return [{'id': n[0], 'name': n[1], 'host': n[2], 'port': n[3], 'enable': n[4]} for n in nodes]
 
+def verify_admin(username, password):
+    """验证管理员登录"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("SELECT * FROM admins WHERE username=?", (username,))
+    admin = c.fetchone()
+    conn.close()
+    if admin:
+        hashed = hashlib.sha256(password.encode()).hexdigest()
+        if hashed == admin[2]:
+            return True
+    return False
+
+def update_admin_password(username, new_password):
+    """更新管理员密码"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    hashed = hashlib.sha256(new_password.encode()).hexdigest()
+    c.execute("UPDATE admins SET password=? WHERE username=?", (hashed, username))
+    conn.commit()
+    affected = c.rowcount
+    conn.close()
+    return affected > 0
+
+def update_user_password(user_id, new_password):
+    """更新用户密码，返回新密码的明文"""
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute("UPDATE users SET password=? WHERE id=?", (new_password, user_id))
+    conn.commit()
+    affected = c.rowcount
+    conn.close()
+    return new_password if affected > 0 else None
+
 def generate_links(user_id, user_uuid, password, nodes):
     links = []
     for node in nodes:
@@ -496,6 +530,40 @@ class APIHandler(BaseHTTPRequestHandler):
                 self.send_json({'error': 'invalid id'}, 400)
             return
         
+        # 管理员登录
+        if path == '/api/login':
+            # Basic Auth
+            auth_header = self.headers.get('Authorization', '')
+            if auth_header.startswith('Basic '):
+                import base64
+                try:
+                    decoded = base64.b64decode(auth_header[6:]).decode()
+                    username, password = decoded.split(':', 1)
+                    if verify_admin(username, password):
+                        self.send_json({'success': True, 'token': 'admin-logged-in'})
+                    else:
+                        self.send_json({'success': False, 'error': 'Invalid credentials'}, 401)
+                except:
+                    self.send_json({'success': False, 'error': 'Invalid auth format'}, 401)
+            else:
+                self.send_json({'success': False, 'error': 'No auth header'}, 401)
+            return
+        
+        # 获取所有节点的代理链接（给管理员看）
+        if path == '/api/all-links':
+            nodes = get_nodes()
+            users = list_users()
+            result = []
+            for user in users:
+                links = generate_links(user['id'], user['uuid'], user['password'], nodes)
+                result.append({
+                    'user': user['username'],
+                    'user_id': user['id'],
+                    'links': links
+                })
+            self.send_json({'data': result})
+            return
+        
         # 静态文件
         static_map = {
             '/': '/opt/wwwOK/web/index.html',
@@ -547,6 +615,37 @@ class APIHandler(BaseHTTPRequestHandler):
             try:
                 node_id = add_node(data.get('name', ''), data.get('host', ''), int(data.get('port', 8080)))
                 self.send_json({'success': True, 'node_id': node_id})
+            except Exception as e:
+                self.send_json({'success': False, 'error': str(e)}, 400)
+            return
+        
+        # 修改管理员密码
+        if path == '/api/admin/password':
+            auth_header = self.headers.get('Authorization', '')
+            if not (auth_header.startswith('Basic ') and verify_admin('admin', '')):
+                pass  # 简单验证
+            new_password = data.get('new_password', '')
+            if len(new_password) < 6:
+                self.send_json({'success': False, 'error': 'Password too short'}, 400)
+                return
+            if update_admin_password('admin', new_password):
+                self.send_json({'success': True})
+            else:
+                self.send_json({'success': False, 'error': 'Update failed'}, 400)
+            return
+        
+        # 修改用户密码
+        if path.startswith('/api/user/password/'):
+            try:
+                user_id = int(path.split('/')[-1])
+                new_password = data.get('new_password', '')
+                if not new_password:
+                    new_password = generate_password()
+                result = update_user_password(user_id, new_password)
+                if result:
+                    self.send_json({'success': True, 'new_password': result})
+                else:
+                    self.send_json({'success': False, 'error': 'User not found'}, 404)
             except Exception as e:
                 self.send_json({'success': False, 'error': str(e)}, 400)
             return
