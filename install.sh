@@ -138,6 +138,7 @@ def get_db_conn():
     return conn
 
 def get_all_users():
+    init_db()
     conn = get_db_conn()
     c = conn.cursor()
     c.execute("SELECT id, username, password, uuid, enable, auth_id FROM users WHERE enable=1")
@@ -952,6 +953,8 @@ do_install() {
 
     # 创建 wwwok 命令行工具
     ln -sf /opt/wwwOK/install.sh /usr/local/bin/wwwok
+    chmod +x /opt/wwwOK/install.sh
+    echo -e "  ${GREEN}wwwok 命令已创建: /usr/local/bin/wwwok${NC}"
     chmod +x /opt/wwwOK/install.sh
 
     SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
