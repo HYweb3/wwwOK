@@ -115,6 +115,29 @@ create_directories() {
     log_success "目录创建完成"
 }
 
+# 下载 Web 前端文件
+download_web_files() {
+    log_info "下载 Web 前端文件..."
+    
+    WEB_URL="https://raw.githubusercontent.com/HYweb3/wwwOK/main/web"
+    
+    curl -sL "${WEB_URL}/index.html" -o ${WORK_DIR}/web/index.html || {
+        log_error "下载 index.html 失败"
+        exit 1
+    }
+    
+    # 下载 admin.html（管理页面）
+    curl -sL "${WEB_URL}/admin.html" -o ${WORK_DIR}/web/admin.html 2>/dev/null || {
+        log_info "admin.html 不存在，跳过"
+    }
+    
+    # 下载静态资源（如果有）
+    mkdir -p ${WORK_DIR}/web/static
+    curl -sL "${WEB_URL}/static/" -o /dev/null 2>&1 || true
+    
+    log_success "Web 前端文件下载完成"
+}
+
 # 初始化数据库
 init_database() {
     log_info "初始化数据库..."
@@ -205,8 +228,7 @@ generate_singbox_config() {
     "outbounds": [
         {
             "tag": "direct",
-            "type": "direct",
-            "domain_strategy": "prefer_ipv4"
+            "type": "direct"
         },
         {
             "tag": "block",
@@ -854,6 +876,7 @@ main() {
     detect_os
     install_dependencies
     create_directories
+    download_web_files
     download_singbox
     init_database
     generate_singbox_config
