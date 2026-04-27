@@ -281,6 +281,16 @@ do_install() {
     print_banner
     echo -e "  ${CYAN}开始全新安装...${NC}\n"
     detect_os
+
+    # 清理残留进程和服务
+    echo -e "${CYAN}>>> 清理残留进程...${NC}"
+    pkill -9 -f "wwwOK_api.py" 2>/dev/null || true
+    pkill -9 -f "sing-box" 2>/dev/null || true
+    systemctl stop wwwok-api 2>/dev/null || true
+    systemctl disable wwwok-api 2>/dev/null || true
+    systemctl stop sing-box 2>/dev/null || true
+    echo -e "  ${GREEN}清理完成${NC}\n"
+
     install_dependencies
     create_dirs
     download_singbox
