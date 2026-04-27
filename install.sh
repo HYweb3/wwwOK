@@ -385,11 +385,14 @@ do_install() {
     install_api_service
     setup_firewall
 
+    # 下载 install.sh 到 /opt/wwwOK/
+    curl -fsSL "https://raw.githubusercontent.com/HYweb3/wwwOK/main/install.sh" \
+        -o /opt/wwwOK/install.sh
+    chmod +x /opt/wwwOK/install.sh
+
     # 创建 wwwok 命令行工具
     ln -sf /opt/wwwOK/install.sh /usr/local/bin/wwwok
-    chmod +x /opt/wwwOK/install.sh
     echo -e "  ${GREEN}wwwok 命令已创建: /usr/local/bin/wwwok${NC}"
-    chmod +x /opt/wwwOK/install.sh
 
     SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || curl -s icanhazip.com 2>/dev/null || hostname -I | awk '{print $1}')
     [ -z "$SERVER_IP" ] && SERVER_IP="<服务器IP>"
