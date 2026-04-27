@@ -521,8 +521,8 @@ class APIHandler(BaseHTTPRequestHandler):
             # Real online node count = check sing-box process exists
             import subprocess
             try:
-                r = subprocess.run(['systemctl', 'is-active', 'sing-box'], capture_output=True, text=True, timeout=5)
-                online_nodes = 1 if r.stdout.strip() == 'active' else 0
+                r = subprocess.run(['pgrep', '-f', 'sing-box'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+                online_nodes = 1 if r.stdout.strip() else 0
             except:
                 online_nodes = 0
             conn = get_db_conn(); c = conn.cursor()
