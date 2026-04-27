@@ -1127,15 +1127,13 @@ do_change_password() {
     if [ -z "$newpass" ] || [ ${#newpass} -lt 6 ]; then
         print_status FAIL "密码长度至少6位"; return
     fi
-    # 转义单引号（密码可能含 '）
-    SAFE_PASS=$($PYTHON_CMD -c "print('$newpass'.replace(\"'\", \"'\"'\"'\"'\"'\"'))" 2>/dev/null || echo "$newpass")
-    HASH=$($PYTHON_CMD -c "import hashlib; print(hashlib.sha256(\"${SAFE_PASS}\".encode()).hexdigest())")
-    $PYTHON_CMD - << 'PYEOF'
-import sqlite3
-import os
+
+    # 用临时文件避免所有引号问题
+    local tmpfile=$(mktemp)
+    cat > "$tmpfile" << 'PYEOF'
+import sqlite3, sys, hashlib
 try:
-    p = '''${SAFE_PASS}'''
-    import hashlib
+    p = sys.argv[1]
     h = hashlib.sha256(p.encode()).hexdigest()
     conn = sqlite3.connect('/opt/wwwOK/db/users.db')
     c = conn.cursor()
@@ -1145,6 +1143,8 @@ try:
 except Exception as e:
     print("错误: " + str(e))
 PYEOF
+    $PYTHON_CMD "$tmpfile" "$newpass"
+    rm -f "$tmpfile"
     print_status OK "管理密码已修改为: $newpass"
 }
 
