@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """动态生成 sing-box 多协议配置"""
-import sqlite3, os, json, base64, subprocess
+import sqlite3, os, json, base64, subprocess, hashlib
+from datetime import datetime, timedelta
 
 DB_PATH = "/opt/wwwOK/db/users.db"
 CONFIG_PATH = "/opt/wwwOK/config/sing-box.json"
@@ -10,7 +11,26 @@ def get_db_conn():
     conn.text_factory = str
     return conn
 
+def init_db():
+    """初始化数据库表，确保 users/admins/nodes 存在"""
+    conn = get_db_conn()
+    c = conn.cursor()
+    c.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, uuid TEXT UNIQUE NOT NULL, enable INTEGER DEFAULT 1, flow_limit INTEGER DEFAULT 107374182400, flow_used INTEGER DEFAULT 0, expire_time TEXT, created_time TEXT, last_login TEXT, auth_id TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS admins (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL, password TEXT NOT NULL, created_time TEXT)")
+    c.execute("CREATE TABLE IF NOT EXISTS nodes (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, host TEXT NOT NULL, port INTEGER DEFAULT 8080, enable INTEGER DEFAULT 1, created_time TEXT)")
+    try:
+        c.execute("ALTER TABLE nodes ADD COLUMN ss_password TEXT DEFAULT ''")
+        conn.commit()
+    except: pass
+    c.execute("SELECT * FROM admins WHERE username='admin'")
+    if not c.fetchone():
+        hashed = hashlib.sha256("vip@8888999".encode('utf-8')).hexdigest()
+        c.execute("INSERT INTO admins (username, password, created_time) VALUES (?, ?, ?)", ("admin", hashed, datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+
 def get_all_users():
+    init_db()
     conn = get_db_conn()
     c = conn.cursor()
     c.execute("SELECT id, username, password, uuid, enable, auth_id FROM users WHERE enable=1")
