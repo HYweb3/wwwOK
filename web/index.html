@@ -1135,6 +1135,7 @@
                     // Render ALL nodes' configs
                     const linksDiv = document.getElementById('protocolLinks');
                     renderUserConfigs(linksDiv, data.user.configs);
+                    currentViewUserId = data.user.id;
                     
                     showToast('用户创建成功', 'success');
                     loadUsers();
@@ -1218,6 +1219,7 @@
                 
                 document.getElementById('userModal').classList.add('active');
                 document.getElementById('userDetails').style.display = 'block';
+                currentViewUserId = userId;
                 document.getElementById('detailUsername').textContent = user.username;
                 document.getElementById('detailPassword').textContent = user.password;
                 document.getElementById('subUrl').value = `${API}/subscribe/${user.auth_id}`;
@@ -1335,6 +1337,7 @@
         
         // Auth
         let isLoggedIn = false;
+        let currentViewUserId = null;
         
         function getAuthHeader() {
             const u = document.getElementById('loginUsername').value;

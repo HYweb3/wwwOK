@@ -220,7 +220,7 @@ generate_singbox_config() {
     # 获取服务器IP
     SERVER_IP=$(curl -s ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
     
-    cat > ${WORK_DIR}/config/sing-box.json << EOF
+    cat > ${WORK_DIR}/config/sing-box.json << 'EOF'
 {
     "log": {
         "level": "info",
@@ -229,10 +229,49 @@ generate_singbox_config() {
     },
     "inbounds": [
         {
-            "tag": "web",
+            "tag": "shadowsocks",
+            "type": "shadowsocks",
+            "listen": "0.0.0.0",
+            "listen_port": 8081,
+            "method": "2022-blake3-aes-256-gcm",
+            "password": "2022-blake3-aes-256-gcm:wwwOK_default_pass_32bytes!!",
+            "network": "tcp"
+        },
+        {
+            "tag": "vmess",
+            "type": "vmess",
+            "listen": "0.0.0.0",
+            "listen_port": 8082,
+            "users": [],
+            "transport": {
+                "type": "tcp"
+            }
+        },
+        {
+            "tag": "trojan",
+            "type": "trojan",
+            "listen": "0.0.0.0",
+            "listen_port": 8083,
+            "users": [],
+            "transport": {
+                "type": "tcp"
+            }
+        },
+        {
+            "tag": "vless",
+            "type": "vless",
+            "listen": "0.0.0.0",
+            "listen_port": 8084,
+            "users": [],
+            "transport": {
+                "type": "tcp"
+            }
+        },
+        {
+            "tag": "http",
             "type": "http",
             "listen": "0.0.0.0",
-            "listen_port": ${WEB_PORT}
+            "listen_port": 8080
         }
     ],
     "outbounds": [
