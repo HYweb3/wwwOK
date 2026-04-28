@@ -16,8 +16,20 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8888
 try:
     from dateutil.parser import parse as dt_parse
 except ImportError:
+    import re
     def dt_parse(s):
-        return datetime.fromisoformat(s)
+        # Python 3.6: fromisoformat doesn't support microseconds, manual parse
+        m = re.match(r'(\d+)-(\d+)-(\d+)[T ](\d+):(\d+):(\d+)', s)
+        if m:
+            from datetime import datetime as dt
+            micro = 0
+            frac = s.split('.')
+            if len(frac) > 1:
+                micro = int(frac[1][:6].ljust(6, '0'))
+            return dt(int(m.group(1)), int(m.group(2)), int(m.group(3)),
+                      int(m.group(4)), int(m.group(5)), int(m.group(6)), micro)
+        # Fallback: try fromisoformat anyway (will work for simple cases)
+        return __import__('datetime').datetime.fromisoformat(s)
 
 DB_PATH = "/opt/wwwOK/db/users.db"
 CONFIG_PATH = "/opt/wwwOK/config/sing-box.json"
