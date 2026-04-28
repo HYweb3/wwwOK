@@ -15,14 +15,10 @@
 ## 快速安装（一键）
 
 ```bash
-curl -sL https://raw.githubusercontent.com/HYweb3/wwwOK/main/install.sh | bash
+curl -sL https://raw.githubusercontent.com/HYweb3/wwwOK/main/install.sh | bash -s 1
 ```
 
-## 一键更新（如已安装）
-
-```bash
-curl -sL https://raw.githubusercontent.com/HYweb3/wwwOK/main/install.sh | bash -s -- 1
-```
+> ⚠️ 必须加 `1` 参数（非交互模式），否则 `read` 在 pipe 下会失败导致脚本直接退出。
 
 安装完成后访问：`http://你的服务器IP:8888`
 
