@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""wwwOK API 服务 (Python 3.6兼容版)
-基于 GitHub HYweb3/wwwOK main 分支 v2.0
+# -*- coding: utf-8 -*-
+"""wwwOK API Service (Python 3.6 compatible)
+Based on GitHub HYweb3/wwwOK main branch v2.0
 用法: python3 wwwOK_api.py [port]
 """
 import sqlite3, uuid, string, secrets, hashlib, json, time, os, subprocess, sys

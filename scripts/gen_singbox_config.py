@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""动态生成 sing-box 多协议配置"""
+# -*- coding: utf-8 -*-
+"""Dynamic generate sing-box multi-protocol config"""
 import sqlite3, os, json, base64, subprocess, hashlib
 from datetime import datetime, timedelta
 
